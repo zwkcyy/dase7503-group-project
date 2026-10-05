@@ -1,0 +1,28 @@
+# Game field description used by scripts/generate_map.py
+#
+# Units: mm (as in the field drawing). The generator converts to m for ROS.
+# Field frame: origin at the inner lower-left corner of the field,
+#              x along the 3020 mm side, y along the 2000 mm side.
+
+field:
+  length_mm: 3020          # inner size along x
+  width_mm: 2000           # inner size along y
+  wall_thickness_mm: 20    # TODO: measure the real wall panels
+
+map:
+  name: field_map          # output: maps/field_map.pgm + maps/field_map.yaml
+  resolution_mm: 20        # size of one map cell
+  margin_mm: 200           # unknown area kept around the walls
+
+# Optional, only drawn on the preview image (not written into the map).
+# Rectangles are [x_min, y_min, x_max, y_max] in mm, field frame.
+# Leave as null until the values are confirmed on the real field.
+zones:
+  start: null
+  destination: null
+
+racks:
+  A: null
+  B: null
+  C: null
+  D: null
