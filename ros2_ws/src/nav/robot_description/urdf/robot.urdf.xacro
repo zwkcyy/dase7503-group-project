@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<!--
+  DASE7503 mecanum logistics robot.
+
+  base_link: ground projection of the chassis centre, x forward, y left, z up.
+  All lengths in m, angles in rad.
+-->
+<robot name="dase7503_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Set to true by the simulation launch to include Gazebo plugins (not used yet) -->
+  <xacro:arg name="sim" default="false"/>
+
+  <!-- ===== Dimensions ===== -->
+  <!-- Chassis box -->
+  <xacro:property name="body_length" value="0.28"/>      <!-- TODO: replace with CAD table value -->
+  <xacro:property name="body_width" value="0.28"/>       <!-- TODO: replace with CAD table value -->
+  <xacro:property name="body_height" value="0.10"/>      <!-- TODO: replace with CAD table value -->
+  <xacro:property name="body_clearance" value="0.02"/>   <!-- TODO: replace with CAD table value (ground to chassis bottom) -->
+
+  <!-- Wheels (visual only) -->
+  <xacro:property name="wheel_radius" value="0.0325"/>   <!-- TODO: replace with CAD table value -->
+  <xacro:property name="wheel_width" value="0.03"/>      <!-- TODO: replace with CAD table value -->
+  <xacro:property name="wheel_base" value="0.18"/>       <!-- TODO: replace with CAD table value (front-rear axle distance) -->
+  <xacro:property name="wheel_track" value="0.20"/>      <!-- TODO: replace with CAD table value (left-right wheel distance) -->
+
+  <!-- Sensors, positions relative to base_link -->
+  <xacro:property name="laser_x" value="0.0"/>           <!-- TODO: replace with CAD table value -->
+  <xacro:property name="laser_y" value="0.0"/>           <!-- TODO: replace with CAD table value -->
+  <xacro:property name="laser_z" value="0.15"/>          <!-- TODO: replace with CAD table value -->
+  <xacro:property name="laser_yaw" value="0.0"/>         <!-- TODO: replace with CAD table value -->
+
+  <xacro:property name="camera_x" value="${body_length / 2}"/>  <!-- TODO: replace with CAD table value -->
+  <xacro:property name="camera_y" value="0.0"/>          <!-- TODO: replace with CAD table value -->
+  <xacro:property name="camera_z" value="0.12"/>         <!-- TODO: replace with CAD table value -->
+  <xacro:property name="camera_pitch" value="0.0"/>      <!-- TODO: replace with CAD table value -->
+
+  <xacro:property name="imu_x" value="0.0"/>             <!-- TODO: replace with CAD table value -->
+  <xacro:property name="imu_y" value="0.0"/>             <!-- TODO: replace with CAD table value -->
+  <xacro:property name="imu_z" value="0.05"/>            <!-- TODO: replace with CAD table value -->
+
+  <!-- ===== Materials ===== -->
+  <material name="body_grey">
+    <color rgba="0.6 0.6 0.6 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.1 0.1 0.1 1.0"/>
+  </material>
+  <material name="sensor_blue">
+    <color rgba="0.2 0.4 0.8 1.0"/>
+  </material>
+
+  <!-- ===== Chassis ===== -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${body_clearance + body_height / 2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}"/>
+      </geometry>
+      <material name="body_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${body_clearance + body_height / 2}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${body_length} ${body_width} ${body_height}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- ===== Wheels =====
+       Fixed joints: the wheels are only drawn, so no joint_states are needed. -->
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}_wheel_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi / 2} 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="wheel_black"/>
+      </visual>
+    </link>
+    <joint name="${name}_wheel_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}_wheel_link"/>
+      <origin xyz="${x} ${y} ${wheel_radius}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="front_left" x="${wheel_base / 2}" y="${wheel_track / 2}"/>
+  <xacro:wheel name="front_right" x="${wheel_base / 2}" y="${-wheel_track / 2}"/>
+  <xacro:wheel name="rear_left" x="${-wheel_base / 2}" y="${wheel_track / 2}"/>
+  <xacro:wheel name="rear_right" x="${-wheel_base / 2}" y="${-wheel_track / 2}"/>
+
+  <!-- ===== Sensors ===== -->
+  <link name="laser">
+    <visual>
+      <geometry>
+        <cylinder radius="0.035" length="0.03"/>
+      </geometry>
+      <material name="sensor_blue"/>
+    </visual>
+  </link>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser"/>
+    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
+  </joint>
+
+  <!-- camera_link follows the ROS body convention (x forward); VI adds the optical frame if needed -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="-0.01 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.02 0.06 0.03"/>
+      </geometry>
+      <material name="sensor_blue"/>
+    </visual>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="${camera_x} ${camera_y} ${camera_z}" rpy="0 ${camera_pitch} 0"/>
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${imu_x} ${imu_y} ${imu_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ===== Simulation ===== -->
+  <xacro:if value="$(arg sim)">
+    <!-- Gazebo plugins will be included here -->
+  </xacro:if>
+
+</robot>
