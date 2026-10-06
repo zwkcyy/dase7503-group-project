@@ -1,0 +1,18 @@
+# laser_filters chain: /scan -> /scan_filtered
+# Removes the returns that hit the robot itself.
+scan_to_scan_filter_chain:
+  ros__parameters:
+    filter1:
+      name: body_box_filter
+      type: laser_filters/LaserScanBoxFilter
+      params:
+        box_frame: base_link
+        # Chassis 0.28 x 0.28 m plus 0.02 m on each side.
+        # TODO: enlarge to the rack size while carrying a rack.
+        min_x: -0.16
+        max_x: 0.16
+        min_y: -0.16
+        max_y: 0.16
+        min_z: -0.10
+        max_z: 0.50
+        invert: false  # false: drop the points inside the box
