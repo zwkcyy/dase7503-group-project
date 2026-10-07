@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robot_vision</name>
+  <version>0.1.0</version>
+  <description>Camera QR decoding with a persistent result window</description>
+  <maintainer email="wuyimingai2004-cloud@users.noreply.github.com">wuyimingai2004-cloud</maintainer>
+  <license>License not specified</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-pil</exec_depend>
+  <exec_depend>python3-pil.imagetk</exec_depend>
+  <exec_depend>python3-tk</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

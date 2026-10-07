@@ -1,0 +1,4 @@
+# Dependencies for local image and USB camera tests; prefer apt packages with ROS.
+numpy>=1.23,<3
+opencv-python>=4.8,<5
+Pillow>=9,<13
