@@ -12,12 +12,21 @@ and lift feedback at each step:
    for `/lift_state == 0`.
 6. Continue until the configured rack list is delivered.
 
+The 180-second competition timer starts when `START` is detected. If time runs
+out, the mission cancels its active Nav2 goal, asks the vision node to stop
+scanning, and leaves the lift in its current state so a carried rack is not
+lowered automatically. Unexpected valid markers are logged and cause a fresh
+scan request, within the QR timeout for that mission step.
+
 ## Configure before a run
 
 Edit `config/mission_params.yaml` with measured approach and destination poses
 in the `map` frame, using metres and radians. Replace all placeholder zeroes,
-then set `coordinates_confirmed` to `true`. Each rack pose should leave enough
-clearance for the measured robot footprint and camera field of view.
+enter the exact team-specific text for each rack in `rack_qr_codes`, then set
+`coordinates_confirmed` to `true`. The node requires one unique full code such
+as `RACKA_4X6M` per rack; it will not start with only a rack-letter prefix.
+Each rack pose should leave enough clearance for the measured robot footprint
+and camera field of view.
 
 The node calls `/qr/start_scan` and `/qr/stop_scan`
 (`std_srvs/srv/Trigger`) and reads `/qr/data` (`std_msgs/msg/String`) from the
