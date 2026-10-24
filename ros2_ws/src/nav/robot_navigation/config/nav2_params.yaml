@@ -207,8 +207,8 @@ controller_server:
         threshold_to_consider: 1.0
       TwirlingCritic:
         enabled: true
-        twirling_cost_power: 1
-        twirling_cost_weight: 10.0
+        cost_power: 1
+        cost_weight: 10.0
 
 # Planner choice: SmacPlanner2D rather than NavFn.
 # - Cost-aware A* (cost_travel_multiplier) keeps paths away from walls and racks

@@ -15,6 +15,9 @@ python3 scripts/generate_map.py --preview
 The generator writes `maps/field_map.pgm`, `maps/field_map.yaml`, and a visual
 preview. Rack and zone positions in `config/field_config.yaml` remain unset
 until the physical field drawing is measured and confirmed.
+Dimensions and resolution must be finite and positive, and margin must be
+nonnegative. Invalid configurations fail before writing map files. Map names
+accept letters, digits, underscores and hyphens, so output stays in `--out-dir`.
 
 ## Start Nav2
 
@@ -39,3 +42,10 @@ The velocity limits and footprint in `config/nav2_params.yaml` must be checked
 against the measured robot and confirmed motor interface before floor testing.
 The static map contains the field walls; temporary racks are detected by the
 lidar costmap.
+
+## Offline checks
+
+The [NAV/VI regression suite](../../common/tests/README.md) checks map geometry,
+PGM orientation, map origin, invalid settings, and reproduction of the committed
+map. The Nav2 launch files still require a ROS 2 Jazzy startup check. Footprints
+and self-filter bounds for a carried rack remain dependent on measured geometry.

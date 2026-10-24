@@ -5,6 +5,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -12,9 +13,21 @@ def generate_launch_description():
     image_topic = LaunchConfiguration("image_topic")
     model_dir = LaunchConfiguration("model_dir")
     log_file = LaunchConfiguration("log_file")
+    use_sim_time = LaunchConfiguration("use_sim_time")
+    camera_frame = LaunchConfiguration("camera_frame")
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "use_sim_time",
+                default_value="false",
+                description="Use the same ROS clock for the camera and scanner",
+            ),
+            DeclareLaunchArgument(
+                "camera_frame",
+                default_value="camera_optical_frame",
+                description="Optical frame defined by the robot description",
+            ),
             DeclareLaunchArgument(
                 "start_camera",
                 default_value="true",
@@ -41,7 +54,11 @@ def generate_launch_description():
                 name="camera",
                 output="screen",
                 condition=IfCondition(start_camera),
-                remappings=[("/camera/image_raw", image_topic)],
+                parameters=[{
+                    "frame_id": ParameterValue(camera_frame, value_type=str),
+                    "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
+                }],
+                remappings=[("~/image_raw", image_topic)],
             ),
             Node(
                 package="robot_vision",
@@ -50,9 +67,10 @@ def generate_launch_description():
                 output="screen",
                 parameters=[
                     {
-                        "image_topic": image_topic,
-                        "model_dir": model_dir,
-                        "log_file": log_file,
+                        "image_topic": ParameterValue(image_topic, value_type=str),
+                        "model_dir": ParameterValue(model_dir, value_type=str),
+                        "log_file": ParameterValue(log_file, value_type=str),
+                        "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
                     }
                 ],
             ),

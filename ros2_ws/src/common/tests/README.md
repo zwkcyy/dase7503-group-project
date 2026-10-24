@@ -1,0 +1,51 @@
+# NAV/VI offline regression checks
+
+Run from the repository root with Python 3.11 or newer. The suite imports the
+production mission, scanner and map generator. Only ROS boundaries (nodes,
+messages, services, actions and cv_bridge) are replaced by small test fakes;
+OpenCV decoding, NumPy and YAML processing run normally.
+
+Use an isolated host environment. On Windows, use `.venv-nav-review/Scripts/python`
+instead of `.venv-nav-review/bin/python` in the commands below.
+
+```bash
+python3 -m venv .venv-nav-review
+.venv-nav-review/bin/python -m pip install -r ros2_ws/src/common/tests/requirements.txt
+.venv-nav-review/bin/python -m unittest discover -s ros2_ws/src/common/tests -v
+```
+
+Do not commit the virtual environment. Do not install the host-side OpenCV wheel
+into the Pi's ROS Python environment; its cv_bridge uses system libraries.
+
+## Coverage
+
+- Mission: full four-rack sequence; exact QR matching; pre-start wait; step and
+  competition deadlines; fresh lift feedback after a single command; discovery
+  wait; delayed goal acceptance/results; service failures; cancellation retries.
+- Scanner: actual OpenCV decoding of generated START/END/rack codes; rejection of
+  unrelated codes; two-frame confirmation; stale/duplicate frames; confirmation
+  expiry; idempotent services; file and debug failures; optional model fallback.
+- Maps: default geometry and identical committed PGM; zero margin; PGM row order;
+  metre-based origin; invalid dimensions; CLI output and filename validation.
+
+## Limits and checks on the robot
+
+These are offline regression checks, not ROS integration or physical acceptance.
+Before a run, verify on ROS 2 Jazzy:
+
+1. Build with colcon and start NAV, vision and mission with the measured settings.
+   Check lifecycle activation, TF, image frame/timestamps and topic QoS.
+2. Check camera decoding at pickup/delivery distance, including blur, reflections,
+   lighting, simultaneous markers and Pi processing latency. Exercise WeChat if used.
+3. Verify one lift command produces the expected completion feedback. The Int8
+   interface has no sequence ID; these tests cannot prove feedback belongs to the
+   current physical command or that a rack was actually picked up.
+4. Exercise missing QR, unavailable services, lost feedback, failed navigation,
+   deadline expiry and Ctrl+C. Confirm Nav2 stops the robot and the EC command
+   watchdog handles transport loss. A cancellation acknowledgement alone is not
+   a physical stop measurement.
+5. Measure empty/loaded footprints, sensor poses and carrying clearance; configure
+   the costmap/self-filter accordingly. Then run and time the four-rack mission.
+
+No new requests for EC internal motor, PID, encoder or gear parameters are added
+by these regression checks.

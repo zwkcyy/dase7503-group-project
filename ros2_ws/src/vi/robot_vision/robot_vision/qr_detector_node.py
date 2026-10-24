@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import csv
+import math
 import os
 import re
 import time
@@ -13,7 +14,8 @@ import rclpy
 
 from cv_bridge import CvBridge
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.executors import ExternalShutdownException
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 
 from sensor_msgs.msg import Image
 from std_msgs.msg import Bool, String
@@ -95,8 +97,14 @@ class QRDetectorNode(Node):
             .string_value
         )
 
-        if self.process_hz <= 0.0:
-            self.process_hz = 10.0
+        if not math.isfinite(self.process_hz) or self.process_hz <= 0.0:
+            raise ValueError('process_hz must be finite and greater than zero')
+        if self.confirm_hits < 1:
+            raise ValueError('confirm_hits must be at least 1')
+        if not math.isfinite(self.confirm_window) or self.confirm_window <= 0.0:
+            raise ValueError('confirm_window must be finite and greater than zero')
+        if (self.confirm_hits - 1) / self.process_hz > self.confirm_window:
+            raise ValueError('confirm_window is too short for confirm_hits and process_hz')
 
         self.process_period = 1.0 / self.process_hz
 
@@ -178,7 +186,9 @@ class QRDetectorNode(Node):
         # No QR inference until /qr/start_scan is called
         self.scanning_enabled = False
 
-        self.last_process_time = 0.0
+        self.last_process_time = -math.inf
+        self.scan_started_ns = 0
+        self.last_frame_stamp_ns = None
 
         self.hit_history = deque()
 
@@ -226,10 +236,13 @@ class QRDetectorNode(Node):
             Image,
             self.image_topic,
             self.image_callback,
-            qos_profile_sensor_data
+            QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT)
         )
 
-        self.prepare_log()
+        try:
+            self.prepare_log()
+        except OSError as e:
+            self.get_logger().warning(f'QR log unavailable; scanning will still work: {e}')
 
         self.get_logger().info('')
         self.get_logger().info(
@@ -242,7 +255,8 @@ class QRDetectorNode(Node):
             'Mode     : On-demand scanning'
         )
         self.get_logger().info(
-            'Primary  : WeChatQRCode CNN + SR'
+            'Primary  : ' + ('WeChatQRCode CNN + SR' if self.wechat_detector
+                            is not None else 'OpenCV QRCodeDetector')
         )
         self.get_logger().info(
             'Fallback : OpenCV QRCodeDetector'
@@ -268,20 +282,22 @@ class QRDetectorNode(Node):
         # Avoid repeated start calls while already scanning
         if self.scanning_enabled:
 
-            response.success = False
+            response.success = True
             response.message = (
                 'QR scanner is already scanning.'
             )
 
-            self.get_logger().warning(
-                'Start request ignored: already scanning.'
+            self.get_logger().debug(
+                'Start request acknowledged: already scanning.'
             )
 
             return response
 
         # Reset scan session
         self.hit_history.clear()
-        self.last_process_time = 0.0
+        self.last_process_time = -math.inf
+        self.scan_started_ns = self.get_clock().now().nanoseconds
+        self.last_frame_stamp_ns = None
         self.last_confirmed = None
 
         # Enable QR inference
@@ -313,11 +329,7 @@ class QRDetectorNode(Node):
 
     def stop_scan_callback(self, request, response):
 
-        if not self.scanning_enabled:
-            response.success = False
-            response.message = 'QR scanner is already idle.'
-            return response
-
+        # Idempotent: STOP succeeds even if a result already returned us to IDLE.
         self.scanning_enabled = False
         self.hit_history.clear()
 
@@ -435,6 +447,8 @@ class QRDetectorNode(Node):
                             points[i],
                             dtype=np.float32
                         ).reshape(-1, 2)
+                        if not np.isfinite(pts).all():
+                            pts = None
 
                     except Exception:
                         pts = None
@@ -458,42 +472,36 @@ class QRDetectorNode(Node):
     # =========================================================
     # OpenCV fallback
     # =========================================================
-    def detect_with_opencv(
-        self,
-        frame
-    ):
-
+    def detect_with_opencv(self, frame):
         results = []
-
+        # Multi-code detection avoids losing a coursework marker when another
+        # (unrelated) QR is also visible. Older OpenCV builds retain the single
+        # detector path below.
+        multi = getattr(self.opencv_detector, 'detectAndDecodeMulti', None)
+        if multi is not None:
+            try:
+                found, decoded, points, _ = multi(frame)
+                if found and points is not None:
+                    for data, polygon in zip(decoded, points):
+                        if data and self.valid_pattern.fullmatch(data.strip()):
+                            pts = np.asarray(polygon, dtype=np.float32).reshape(-1, 2)
+                            if np.isfinite(pts).all():
+                                results.append((data.strip(), pts, 'QRCodeDetector'))
+            except Exception as e:
+                self.get_logger().debug(f'OpenCV multi-QR detection failed: {e}')
+        if results:
+            return results
         try:
-
-            data, points, _ = (
-                self.opencv_detector.detectAndDecode(
-                    frame
-                )
-            )
-
-            if data and points is not None:
-
-                pts = np.asarray(
-                    points,
-                    dtype=np.float32
-                ).reshape(-1, 2)
-
-                results.append(
-                    (
-                        data.strip(),
-                        pts,
-                        'QRCodeDetector'
-                    )
-                )
-
+            data, points, _ = self.opencv_detector.detectAndDecode(frame)
+            if data:
+                pts = None
+                if points is not None:
+                    pts = np.asarray(points, dtype=np.float32).reshape(-1, 2)
+                    if not np.isfinite(pts).all():
+                        pts = None
+                results.append((data.strip(), pts, 'QRCodeDetector'))
         except Exception as e:
-
-            self.get_logger().warning(
-                f'OpenCV fallback error: {e}'
-            )
-
+            self.get_logger().warning(f'OpenCV fallback error: {e}')
         return results
 
     # =========================================================
@@ -580,17 +588,15 @@ class QRDetectorNode(Node):
 
         self.hit_history.clear()
 
-        # A logging problem must not leave the scanner active or prevent the
-        # mission from receiving a confirmed QR result.
+        # Publish before disk I/O so local logging cannot delay the mission.
+        result_msg = String()
+        result_msg.data = data
+        self.data_pub.publish(result_msg)
+
         try:
             self.save_result(data, detector)
         except OSError as e:
             self.get_logger().error(f'Could not save QR result: {e}')
-
-        # Publish exactly once even if writing the local CSV failed.
-        result_msg = String()
-        result_msg.data = data
-        self.data_pub.publish(result_msg)
 
         self.get_logger().info('')
         self.get_logger().info(
@@ -618,227 +624,88 @@ class QRDetectorNode(Node):
     # =========================================================
     # Camera callback
     # =========================================================
-    def image_callback(
-        self,
-        msg
-    ):
-
-        # =====================================================
-        # IDLE
-        #
-        # Camera messages still arrive,
-        # but NO QR inference is performed.
-        # =====================================================
+    def image_callback(self, msg):
         if not self.scanning_enabled:
             return
-
         now = time.monotonic()
-
-        # Limit inference rate
-        if (
-            now - self.last_process_time
-            < self.process_period
-        ):
+        if now - self.last_process_time < self.process_period:
             return
 
+        stamp_ns = msg.header.stamp.sec * 1_000_000_000 + msg.header.stamp.nanosec
+        if stamp_ns:
+            # Ignore queued frames from before this scan and repeated frames.
+            # Zero stamps remain supported for image sources without timestamps.
+            if stamp_ns < self.scan_started_ns:
+                return
+            if self.last_frame_stamp_ns is not None and stamp_ns <= self.last_frame_stamp_ns:
+                return
+            self.last_frame_stamp_ns = stamp_ns
         self.last_process_time = now
-
         try:
-
-            frame = self.bridge.imgmsg_to_cv2(
-                msg,
-                desired_encoding='bgr8'
-            )
-
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
-
-            self.get_logger().error(
-                f'cv_bridge error: {e}'
-            )
-
+            self.get_logger().error(f'cv_bridge error: {e}')
             return
 
-        debug = frame.copy()
-
-        result = self.detect_qr(
-            frame
-        )
-
-        # =====================================================
-        # QR detected
-        # =====================================================
+        result = self.detect_qr(frame)
+        detected_msg = Bool()
+        detected_msg.data = result is not None
+        self.detected_pub.publish(detected_msg)
+        hit_time = time.monotonic()
+        while self.hit_history and hit_time - self.hit_history[0][0] > self.confirm_window:
+            self.hit_history.popleft()
+        hits = 0
         if result is not None:
-
-            (
-                data,
-                points,
-                detector,
-                area
-            ) = result
-
-            detected_msg = Bool()
-            detected_msg.data = True
-
-            self.detected_pub.publish(
-                detected_msg
-            )
-
-            # Save hit
-            self.hit_history.append(
-                (
-                    now,
-                    data,
-                    detector
-                )
-            )
-
-            # Remove old hits
-            while self.hit_history:
-
-                age = (
-                    now
-                    - self.hit_history[0][0]
-                )
-
-                if age > self.confirm_window:
-                    self.hit_history.popleft()
-                else:
-                    break
-
-            # Count matching hits
-            hits = sum(
-                1
-                for _, code, _
-                in self.hit_history
-                if code == data
-            )
-
-            # Draw QR boundary
-            if (
-                points is not None
-                and len(points) >= 4
-            ):
-
-                polygon = (
-                    points.astype(np.int32)
-                    .reshape((-1, 1, 2))
-                )
-
-                cv2.polylines(
-                    debug,
-                    [polygon],
-                    True,
-                    (0, 255, 0),
-                    3
-                )
-
-            cv2.putText(
-                debug,
-                f'QR: {data}',
-                (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.9,
-                (0, 255, 0),
-                2
-            )
-
-            cv2.putText(
-                debug,
-                f'Detector: {detector}',
-                (20, 75),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
-                (255, 255, 255),
-                2
-            )
-
-            cv2.putText(
-                debug,
-                f'Confirm: {hits}/{self.confirm_hits}',
-                (20, 110),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.65,
-                (255, 255, 255),
-                2
-            )
-
-            # -----------------------------------------------
-            # Confirm QR
-            # -----------------------------------------------
+            data, points, detector, _ = result
+            self.hit_history.append((hit_time, data, detector))
+            hits = sum(code == data for _, code, _ in self.hit_history)
             if hits >= self.confirm_hits:
+                self.confirm_qr(data, detector)
 
-                self.confirm_qr(
-                    data,
-                    detector
-                )
-
-        # =====================================================
-        # No QR detected
-        # =====================================================
-        else:
-
-            detected_msg = Bool()
-            detected_msg.data = False
-
-            self.detected_pub.publish(
-                detected_msg
-            )
-
-            cv2.putText(
-                debug,
-                'Scanning for QR...',
-                (20, 40),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.8,
-                (0, 0, 255),
-                2
-            )
-
-        # =====================================================
-        # Debug image
-        # Only published while SCANNING
-        # =====================================================
+        # Save Pi CPU and image copies when no viewer is connected. Debug drawing
+        # must never prevent a confirmed result from reaching the mission.
+        if self.debug_pub.get_subscription_count() == 0:
+            return
         try:
-
-            debug_msg = (
-                self.bridge.cv2_to_imgmsg(
-                    debug,
-                    encoding='bgr8'
-                )
-            )
-
+            debug = frame.copy()
+            if result is not None:
+                data, points, detector, _ = result
+                if points is not None and len(points) >= 4:
+                    polygon = points.astype(np.int32).reshape((-1, 1, 2))
+                    cv2.polylines(debug, [polygon], True, (0, 255, 0), 3)
+                lines = [f'QR: {data}', f'Detector: {detector}',
+                         f'Confirm: {hits}/{self.confirm_hits}']
+            else:
+                lines = ['Scanning for QR...']
+            for i, line in enumerate(lines):
+                cv2.putText(debug, line, (20, 40 + 35 * i),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
+            debug_msg = self.bridge.cv2_to_imgmsg(debug, encoding='bgr8')
             debug_msg.header = msg.header
-
-            self.debug_pub.publish(
-                debug_msg
-            )
-
+            self.debug_pub.publish(debug_msg)
         except Exception as e:
-
-            self.get_logger().error(
-                f'Debug image error: {e}'
-            )
+            self.get_logger().error(f'Debug image error: {e}')
 
 
 def main(args=None):
 
     rclpy.init(args=args)
 
-    node = QRDetectorNode()
+    node = None
 
     try:
+        node = QRDetectorNode()
 
         rclpy.spin(node)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, ExternalShutdownException):
         pass
 
     finally:
 
-        node.destroy_node()
-
-        if rclpy.ok():
-            rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+        rclpy.try_shutdown()
 
 
 if __name__ == '__main__':
