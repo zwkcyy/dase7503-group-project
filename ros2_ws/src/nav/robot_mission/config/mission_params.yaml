@@ -10,7 +10,9 @@ delivery_mission:
     destination_x_m: 0.0
     destination_y_m: 0.0
     destination_yaw_rad: 0.0
-    qr_topic: /vision/qr_code
+    qr_topic: /qr/data
+    qr_start_service: /qr/start_scan
+    qr_stop_service: /qr/stop_scan
     lift_command_topic: /lift_cmd
     lift_state_topic: /lift_state
     qr_timeout_s: 15.0

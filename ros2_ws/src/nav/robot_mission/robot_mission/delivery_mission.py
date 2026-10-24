@@ -12,6 +12,7 @@ from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from std_msgs.msg import Int8, String
+from std_srvs.srv import Trigger
 
 
 class MissionState(Enum):
@@ -20,6 +21,7 @@ class MissionState(Enum):
     WAIT_RACK_QR = auto()
     LIFT_RACK = auto()
     NAV_TO_DESTINATION = auto()
+    VERIFY_DESTINATION = auto()
     LOWER_RACK = auto()
     COMPLETE = auto()
     ERROR = auto()
@@ -38,7 +40,9 @@ class DeliveryMission(Node):
         self.declare_parameter("destination_x_m", 0.0)
         self.declare_parameter("destination_y_m", 0.0)
         self.declare_parameter("destination_yaw_rad", 0.0)
-        self.declare_parameter("qr_topic", "/vision/qr_code")
+        self.declare_parameter("qr_topic", "/qr/data")
+        self.declare_parameter("qr_start_service", "/qr/start_scan")
+        self.declare_parameter("qr_stop_service", "/qr/stop_scan")
         self.declare_parameter("lift_command_topic", "/lift_cmd")
         self.declare_parameter("lift_state_topic", "/lift_state")
         self.declare_parameter("qr_timeout_s", 15.0)
@@ -86,9 +90,15 @@ class DeliveryMission(Node):
         self._goal_future = None
         self._result_future = None
         self._goal_sent = False
-        self._lift_command_sent = False
+        self._scan_requested = False
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self._qr_scan_client = self.create_client(
+            Trigger, str(self.get_parameter("qr_start_service").value)
+        )
+        self._qr_stop_client = self.create_client(
+            Trigger, str(self.get_parameter("qr_stop_service").value)
+        )
         self._qr_sub = self.create_subscription(
             String,
             str(self.get_parameter("qr_topic").value),
@@ -127,15 +137,21 @@ class DeliveryMission(Node):
         self._goal_handle = None
         self._goal_future = None
         self._result_future = None
-        self._lift_command_sent = False
-        if state == MissionState.WAIT_RACK_QR:
-            # Require a fresh marker after arriving at the rack approach pose.
+        self._scan_requested = False
+        if state in {
+            MissionState.WAIT_START,
+            MissionState.WAIT_RACK_QR,
+            MissionState.VERIFY_DESTINATION,
+        }:
+            # The scanner publishes one result per request; clear any stale result.
             self._qr_received = ""
         self.get_logger().info(f"Mission state: {state.name}")
 
     def _fail(self, reason: str) -> None:
         self.get_logger().error(reason)
         goal_handle = self._goal_handle
+        if self._scan_requested and self._qr_stop_client.service_is_ready():
+            self._qr_stop_client.call_async(Trigger.Request())
         self._transition(MissionState.ERROR)
         if goal_handle is not None:
             goal_handle.cancel_goal_async()
@@ -186,26 +202,41 @@ class DeliveryMission(Node):
         if self._state == MissionState.NAV_TO_RACK:
             self._transition(MissionState.WAIT_RACK_QR)
         elif self._state == MissionState.NAV_TO_DESTINATION:
-            self._transition(MissionState.LOWER_RACK)
+            self._transition(MissionState.VERIFY_DESTINATION)
 
     def _publish_lift_command(self, command: int) -> None:
         msg = Int8()
         msg.data = command
         self._lift_pub.publish(msg)
 
+    def _request_qr_scan(self) -> None:
+        if self._scan_requested or not self._qr_scan_client.service_is_ready():
+            return
+        self._scan_requested = True
+        future = self._qr_scan_client.call_async(Trigger.Request())
+        future.add_done_callback(self._on_scan_start_response)
+
+    def _on_scan_start_response(self, future) -> None:
+        try:
+            response = future.result()
+        except Exception as exc:
+            self._fail(f"QR scan request failed: {exc}")
+            return
+        if not response.success:
+            self._fail(f"QR scanner refused request: {response.message}")
+
     def _tick(self) -> None:
         elapsed = time.monotonic() - self._state_entered
 
         if self._state == MissionState.WAIT_START:
+            if not self._coordinates_confirmed:
+                return
+            self._request_qr_scan()
             if self._qr_received == "START":
                 self._qr_received = ""
-                if not self._coordinates_confirmed:
-                    self.get_logger().error(
-                        "START detected, but mission poses are still unconfirmed; "
-                        "set coordinates_confirmed after entering measured values."
-                    )
-                    return
                 self._transition(MissionState.NAV_TO_RACK)
+            elif elapsed > self._qr_timeout:
+                self._fail("Timed out waiting for the START QR marker")
 
         elif self._state == MissionState.NAV_TO_RACK:
             if elapsed > self._navigation_timeout:
@@ -219,6 +250,7 @@ class DeliveryMission(Node):
                 )
 
         elif self._state == MissionState.WAIT_RACK_QR:
+            self._request_qr_scan()
             expected_prefix = f"RACK{self._labels[self._rack_index]}_"
             if self._qr_received.startswith(expected_prefix):
                 self.get_logger().info(f"Confirmed rack marker: {self._qr_received}")
@@ -236,6 +268,14 @@ class DeliveryMission(Node):
                 return
             if not self._goal_sent:
                 self._send_navigation_goal(*self._destination)
+
+        elif self._state == MissionState.VERIFY_DESTINATION:
+            self._request_qr_scan()
+            if self._qr_received == "END":
+                self._qr_received = ""
+                self._transition(MissionState.LOWER_RACK)
+            elif elapsed > self._qr_timeout:
+                self._fail("Timed out waiting for the END QR marker")
 
         elif self._state == MissionState.LOWER_RACK:
             self._run_lift_step(command=0, expected_state=0, elapsed=elapsed)
