@@ -1,0 +1,7 @@
+qr_detector:
+  ros__parameters:
+    image_topic: /camera/image_raw
+    qr_topic: /vision/qr_code
+    debug_image_topic: /vision/annotated_image
+    publish_debug_image: true
+    republish_period_s: 0.5
