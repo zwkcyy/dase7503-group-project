@@ -121,6 +121,7 @@ class DeliveryMission(Node):
         self._result_future = None
         self._goal_sent = False
         self._scan_requested = False
+        self._scan_stop_pending = False
         self._scan_retry_at = 0.0
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
@@ -184,11 +185,31 @@ class DeliveryMission(Node):
             return
         self.get_logger().error(reason)
         goal_handle = self._goal_handle
-        if self._scan_requested and self._qr_stop_client.service_is_ready():
-            self._qr_stop_client.call_async(Trigger.Request())
+        self._scan_stop_pending = self._scan_requested
         self._transition(MissionState.ERROR)
+        self._try_stop_qr_scan()
         if goal_handle is not None:
             goal_handle.cancel_goal_async()
+
+    def _try_stop_qr_scan(self) -> None:
+        if not self._scan_stop_pending or not self._qr_stop_client.service_is_ready():
+            return
+        self._scan_stop_pending = False
+        future = self._qr_stop_client.call_async(Trigger.Request())
+        future.add_done_callback(self._on_scan_stop_response)
+
+    def _on_scan_stop_response(self, future) -> None:
+        try:
+            response = future.result()
+        except Exception as exc:
+            self.get_logger().warning(f"QR stop request failed; will retry: {exc}")
+            self._scan_stop_pending = True
+            return
+        if not response.success:
+            # The scanner may already have returned to IDLE after publishing.
+            self.get_logger().debug(
+                f"QR scanner is already idle: {response.message}"
+            )
 
     def _pose_goal(self, x: float, y: float, yaw: float) -> NavigateToPose.Goal:
         goal = NavigateToPose.Goal()
@@ -288,13 +309,18 @@ class DeliveryMission(Node):
                 self._fail(f"QR scan request failed: {exc}")
             return
         if self._state in {MissionState.COMPLETE, MissionState.ERROR}:
-            if response.success and self._qr_stop_client.service_is_ready():
-                self._qr_stop_client.call_async(Trigger.Request())
+            if response.success:
+                self._scan_stop_pending = True
+                self._try_stop_qr_scan()
             return
         if not response.success:
             self._fail(f"QR scanner refused request: {response.message}")
 
     def _tick(self) -> None:
+        if self._state in {MissionState.COMPLETE, MissionState.ERROR}:
+            self._try_stop_qr_scan()
+            return
+
         elapsed = time.monotonic() - self._state_entered
 
         if (

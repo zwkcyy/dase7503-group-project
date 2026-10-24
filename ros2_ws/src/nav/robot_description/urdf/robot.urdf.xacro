@@ -105,7 +105,7 @@
     <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
   </joint>
 
-  <!-- camera_link follows the ROS body convention (x forward); VI adds the optical frame if needed -->
+  <!-- camera_link follows the ROS body convention (x forward). -->
   <link name="camera_link">
     <visual>
       <origin xyz="-0.01 0 0" rpy="0 0 0"/>
@@ -132,5 +132,14 @@
   <xacro:if value="$(arg sim)">
     <!-- Gazebo plugins will be included here -->
   </xacro:if>
+
+  <!-- REP-103 optical axes: x right, y down, z forward. The camera's physical
+       translation and pitch above still need to be measured from the CAD. -->
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
+  </joint>
 
 </robot>
