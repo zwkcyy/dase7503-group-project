@@ -12,8 +12,12 @@ ROS 2 on-demand QR code scanner for Raspberry Pi 5.
 ## QR Recognition
 
 - Primary: OpenCV WeChatQRCode (CNN + Super Resolution)
-- Fallback: OpenCV QRCodeDetector
+- Fallback: OpenCV QRCodeDetector (also works when WeChat models are absent)
 - Two-hit QR confirmation
+
+The WeChat detector is enabled when all four downloaded model files are present
+and the installed OpenCV build includes WeChatQRCode. Otherwise the node logs a
+warning and continues with the OpenCV fallback.
 
 Supported QR codes: START, END, RACKA_XXXX, RACKB_XXXX, RACKC_XXXX, RACKD_XXXX.
 
@@ -105,9 +109,11 @@ Each successful scan publishes one result and returns to IDLE.
 
 ## Validation
 
-Tested with Raspberry Pi 5 and Camera Module 3.
+The QR flow and expected topic/service sequence are documented here. Confirm the
+camera, model availability, and decoding reliability on the team's Raspberry Pi
+and camera before the competition.
 
-Verified sequence:
+Expected sequence:
 
     IDLE -> START SCAN -> QR CONFIRMED -> DATA PUBLISHED -> IDLE
 

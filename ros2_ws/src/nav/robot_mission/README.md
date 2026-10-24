@@ -15,8 +15,10 @@ and lift feedback at each step:
 The 180-second competition timer starts when `START` is detected. If time runs
 out, the mission cancels its active Nav2 goal, asks the vision node to stop
 scanning, and leaves the lift in its current state so a carried rack is not
-lowered automatically. Unexpected valid markers are logged and cause a fresh
-scan request, within the QR timeout for that mission step.
+lowered automatically. If the stop service is temporarily unavailable or its
+request fails, the mission retries while in the terminal error state.
+Unexpected valid markers are logged and cause a fresh scan request, within the
+QR timeout for that mission step.
 
 ## Configure before a run
 

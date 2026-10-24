@@ -132,15 +132,39 @@ class QRDetectorNode(Node):
             'sr.caffemodel'
         )
 
-        # Primary detector
-        self.wechat_detector = (
-            cv2.wechat_qrcode_WeChatQRCode(
-                detect_proto,
-                detect_model,
-                sr_proto,
-                sr_model
-            )
+        # Primary detector. Keep the OpenCV fallback usable when the optional
+        # WeChat models or opencv-contrib module are not installed.
+        model_paths = (
+            detect_proto,
+            detect_model,
+            sr_proto,
+            sr_model,
         )
+        wechat_factory = getattr(
+            cv2,
+            'wechat_qrcode_WeChatQRCode',
+            None
+        )
+        self.wechat_detector = None
+
+        if all(os.path.isfile(path) for path in model_paths) and wechat_factory:
+            try:
+                self.wechat_detector = wechat_factory(*model_paths)
+            except Exception as e:
+                self.get_logger().warning(
+                    f'WeChatQRCode unavailable; using OpenCV fallback: {e}'
+                )
+        else:
+            missing = [path for path in model_paths if not os.path.isfile(path)]
+            if missing:
+                self.get_logger().warning(
+                    'WeChatQRCode models are missing; using OpenCV fallback. '
+                    'Run scripts/download_qr_models.sh to enable the primary detector.'
+                )
+            elif not wechat_factory:
+                self.get_logger().warning(
+                    'This OpenCV build has no WeChatQRCode module; using OpenCV fallback.'
+                )
 
         # Fallback detector
         self.opencv_detector = cv2.QRCodeDetector()
@@ -258,6 +282,7 @@ class QRDetectorNode(Node):
         # Reset scan session
         self.hit_history.clear()
         self.last_process_time = 0.0
+        self.last_confirmed = None
 
         # Enable QR inference
         self.scanning_enabled = True
@@ -302,7 +327,7 @@ class QRDetectorNode(Node):
 
         response.success = True
         response.message = 'QR scanning stopped.'
-        self.get_logger().info('QR scan stopped by mission timeout.')
+        self.get_logger().info('QR scanning stopped.')
         return response
 
     # =========================================================
@@ -373,6 +398,9 @@ class QRDetectorNode(Node):
     ):
 
         results = []
+
+        if self.wechat_detector is None:
+            return results
 
         try:
 
@@ -476,29 +504,24 @@ class QRDetectorNode(Node):
         frame
     ):
 
-        # Main detector
-        results = self.detect_with_wechat(
-            frame
-        )
+        # Fall back when WeChat detects no coursework marker. A random QR code
+        # must not suppress a valid START/END/rack result from the fallback.
+        results = [
+            result
+            for result in self.detect_with_wechat(frame)
+            if self.valid_pattern.fullmatch(result[0]) is not None
+        ]
 
-        # Fallback only if main detector failed
         if not results:
-
-            results = self.detect_with_opencv(
-                frame
-            )
+            results = [
+                result
+                for result in self.detect_with_opencv(frame)
+                if self.valid_pattern.fullmatch(result[0]) is not None
+            ]
 
         valid_results = []
 
         for data, points, detector in results:
-
-            # Ignore QR codes not belonging
-            # to the coursework format
-            if (
-                self.valid_pattern.fullmatch(data)
-                is None
-            ):
-                continue
 
             area = 0.0
 
@@ -551,27 +574,23 @@ class QRDetectorNode(Node):
         self.last_confirmed = data
 
         # -----------------------------------------------
-        # Publish EXACTLY ONCE
-        # -----------------------------------------------
-        result_msg = String()
-        result_msg.data = data
-
-        self.data_pub.publish(
-            result_msg
-        )
-
-        # Save result
-        self.save_result(
-            data,
-            detector
-        )
-
-        # -----------------------------------------------
         # Stop scanner immediately
         # -----------------------------------------------
         self.scanning_enabled = False
 
         self.hit_history.clear()
+
+        # A logging problem must not leave the scanner active or prevent the
+        # mission from receiving a confirmed QR result.
+        try:
+            self.save_result(data, detector)
+        except OSError as e:
+            self.get_logger().error(f'Could not save QR result: {e}')
+
+        # Publish exactly once even if writing the local CSV failed.
+        result_msg = String()
+        result_msg.data = data
+        self.data_pub.publish(result_msg)
 
         self.get_logger().info('')
         self.get_logger().info(
