@@ -76,13 +76,16 @@ Models are stored in:
 
 ## Run
 
-Start camera_ros first:
+Start the camera and QR scanner together:
 
-    ros2 run camera_ros camera_node
+    ros2 launch robot_vision vision_bringup.launch.py
 
-Then start vision:
+If `camera_ros` is already running, leave it up and launch only the scanner:
 
     ros2 run robot_vision qr_detector_node
+
+The launch file accepts `start_camera:=false` and `image_topic:=/your/image/topic`
+for an already running camera or a camera driver with a different image topic.
 
 ## Navigation Integration
 

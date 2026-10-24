@@ -23,6 +23,10 @@ setup(
             os.path.join('share', package_name, 'scripts'),
             glob('scripts/*'),
         ),
+        (
+            os.path.join('share', package_name, 'launch'),
+            glob('launch/*.launch.py'),
+        ),
     ],
 
     install_requires=['setuptools'],

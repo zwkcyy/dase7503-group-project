@@ -34,6 +34,7 @@ class DeliveryMission(Node):
         super().__init__("delivery_mission")
         self.declare_parameter("coordinates_confirmed", False)
         self.declare_parameter("rack_labels", ["A", "B", "C", "D"])
+        self.declare_parameter("rack_qr_codes", [])
         self.declare_parameter("rack_x_m", [0.0, 0.0, 0.0, 0.0])
         self.declare_parameter("rack_y_m", [0.0, 0.0, 0.0, 0.0])
         self.declare_parameter("rack_yaw_rad", [0.0, 0.0, 0.0, 0.0])
@@ -48,11 +49,16 @@ class DeliveryMission(Node):
         self.declare_parameter("qr_timeout_s", 15.0)
         self.declare_parameter("lift_timeout_s", 8.0)
         self.declare_parameter("navigation_timeout_s", 90.0)
+        self.declare_parameter("competition_time_s", 180.0)
 
         self._coordinates_confirmed = bool(
             self.get_parameter("coordinates_confirmed").value
         )
         self._labels = list(self.get_parameter("rack_labels").value)
+        self._rack_qr_codes = [
+            str(code).strip().upper()
+            for code in self.get_parameter("rack_qr_codes").value
+        ]
         self._rack_x = list(self.get_parameter("rack_x_m").value)
         self._rack_y = list(self.get_parameter("rack_y_m").value)
         self._rack_yaw = list(self.get_parameter("rack_yaw_rad").value)
@@ -66,6 +72,9 @@ class DeliveryMission(Node):
         self._navigation_timeout = float(
             self.get_parameter("navigation_timeout_s").value
         )
+        self._competition_time = float(
+            self.get_parameter("competition_time_s").value
+        )
 
         if not self._labels or not (
             len(self._labels)
@@ -78,12 +87,33 @@ class DeliveryMission(Node):
             raise ValueError("rack_labels entries must be one of A, B, C, or D")
         if len(set(self._labels)) != len(self._labels):
             raise ValueError("rack_labels entries must be unique")
-        if min(self._qr_timeout, self._lift_timeout, self._navigation_timeout) <= 0.0:
+        if self._coordinates_confirmed:
+            if len(self._rack_qr_codes) != len(self._labels):
+                raise ValueError(
+                    "Set one full rack_qr_codes value per rack before confirming "
+                    "mission coordinates"
+                )
+            for label, code in zip(self._labels, self._rack_qr_codes):
+                prefix = f"RACK{label}_"
+                suffix = code[len(prefix) :] if code.startswith(prefix) else ""
+                if not suffix.isascii() or not suffix.isalnum():
+                    raise ValueError(
+                        f"rack_qr_codes must contain the full RACK{label}_... code"
+                    )
+            if len(set(self._rack_qr_codes)) != len(self._rack_qr_codes):
+                raise ValueError("rack_qr_codes entries must be unique")
+        if min(
+            self._qr_timeout,
+            self._lift_timeout,
+            self._navigation_timeout,
+            self._competition_time,
+        ) <= 0.0:
             raise ValueError("mission timeouts must be greater than zero")
 
         self._state = MissionState.WAIT_START
         self._state_entered = time.monotonic()
         self._rack_index = 0
+        self._competition_started_at = None
         self._qr_received = ""
         self._lift_state = -1
         self._goal_handle = None
@@ -91,6 +121,7 @@ class DeliveryMission(Node):
         self._result_future = None
         self._goal_sent = False
         self._scan_requested = False
+        self._scan_retry_at = 0.0
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._qr_scan_client = self.create_client(
@@ -138,6 +169,7 @@ class DeliveryMission(Node):
         self._goal_future = None
         self._result_future = None
         self._scan_requested = False
+        self._scan_retry_at = 0.0
         if state in {
             MissionState.WAIT_START,
             MissionState.WAIT_RACK_QR,
@@ -148,6 +180,8 @@ class DeliveryMission(Node):
         self.get_logger().info(f"Mission state: {state.name}")
 
     def _fail(self, reason: str) -> None:
+        if self._state in {MissionState.COMPLETE, MissionState.ERROR}:
+            return
         self.get_logger().error(reason)
         goal_handle = self._goal_handle
         if self._scan_requested and self._qr_stop_client.service_is_ready():
@@ -181,7 +215,15 @@ class DeliveryMission(Node):
         try:
             self._goal_handle = future.result()
         except Exception as exc:  # surface action transport errors in the mission state
-            self._fail(f"Navigation goal request failed: {exc}")
+            if self._state not in {MissionState.COMPLETE, MissionState.ERROR}:
+                self._fail(f"Navigation goal request failed: {exc}")
+            return
+        if self._state not in {
+            MissionState.NAV_TO_RACK,
+            MissionState.NAV_TO_DESTINATION,
+        }:
+            if self._goal_handle.accepted:
+                self._goal_handle.cancel_goal_async()
             return
         if not self._goal_handle.accepted:
             self._fail("Nav2 rejected the mission goal")
@@ -190,6 +232,11 @@ class DeliveryMission(Node):
         self._result_future.add_done_callback(self._on_navigation_result)
 
     def _on_navigation_result(self, future) -> None:
+        if self._state not in {
+            MissionState.NAV_TO_RACK,
+            MissionState.NAV_TO_DESTINATION,
+        }:
+            return
         try:
             status = future.result().status
         except Exception as exc:
@@ -210,17 +257,39 @@ class DeliveryMission(Node):
         self._lift_pub.publish(msg)
 
     def _request_qr_scan(self) -> None:
-        if self._scan_requested or not self._qr_scan_client.service_is_ready():
+        if (
+            self._scan_requested
+            or time.monotonic() < self._scan_retry_at
+            or not self._qr_scan_client.service_is_ready()
+        ):
             return
         self._scan_requested = True
         future = self._qr_scan_client.call_async(Trigger.Request())
         future.add_done_callback(self._on_scan_start_response)
 
+    def _retry_after_unexpected_qr(self, expected: str) -> None:
+        if not self._qr_received:
+            return
+        received = self._qr_received
+        self._qr_received = ""
+        self._scan_requested = False
+        # The vision node becomes idle immediately after publishing a result.
+        # Leave a short gap before asking it to start another scan.
+        self._scan_retry_at = time.monotonic() + 0.25
+        self.get_logger().warning(
+            f"Ignoring QR marker {received!r}; expected {expected!r}. Retrying scan."
+        )
+
     def _on_scan_start_response(self, future) -> None:
         try:
             response = future.result()
         except Exception as exc:
-            self._fail(f"QR scan request failed: {exc}")
+            if self._state not in {MissionState.COMPLETE, MissionState.ERROR}:
+                self._fail(f"QR scan request failed: {exc}")
+            return
+        if self._state in {MissionState.COMPLETE, MissionState.ERROR}:
+            if response.success and self._qr_stop_client.service_is_ready():
+                self._qr_stop_client.call_async(Trigger.Request())
             return
         if not response.success:
             self._fail(f"QR scanner refused request: {response.message}")
@@ -228,13 +297,31 @@ class DeliveryMission(Node):
     def _tick(self) -> None:
         elapsed = time.monotonic() - self._state_entered
 
+        if (
+            self._competition_started_at is not None
+            and self._state not in {MissionState.COMPLETE, MissionState.ERROR}
+            and time.monotonic() - self._competition_started_at
+            >= self._competition_time
+        ):
+            self._fail(
+                f"Competition time limit reached ({self._competition_time:.0f} s); "
+                "navigation will stop and the lift will remain in its current state"
+            )
+            return
+
         if self._state == MissionState.WAIT_START:
             if not self._coordinates_confirmed:
                 return
             self._request_qr_scan()
             if self._qr_received == "START":
                 self._qr_received = ""
+                self._competition_started_at = time.monotonic()
+                self.get_logger().info(
+                    f"Competition timer started ({self._competition_time:.0f} s)"
+                )
                 self._transition(MissionState.NAV_TO_RACK)
+            elif self._qr_received:
+                self._retry_after_unexpected_qr("START")
             elif elapsed > self._qr_timeout:
                 self._fail("Timed out waiting for the START QR marker")
 
@@ -251,13 +338,15 @@ class DeliveryMission(Node):
 
         elif self._state == MissionState.WAIT_RACK_QR:
             self._request_qr_scan()
-            expected_prefix = f"RACK{self._labels[self._rack_index]}_"
-            if self._qr_received.startswith(expected_prefix):
+            expected_code = self._rack_qr_codes[self._rack_index]
+            if self._qr_received == expected_code:
                 self.get_logger().info(f"Confirmed rack marker: {self._qr_received}")
                 self._qr_received = ""
                 self._transition(MissionState.LIFT_RACK)
+            elif self._qr_received:
+                self._retry_after_unexpected_qr(expected_code)
             elif elapsed > self._qr_timeout:
-                self._fail(f"Timed out waiting for QR marker {expected_prefix}XXXX")
+                self._fail(f"Timed out waiting for QR marker {expected_code}")
 
         elif self._state == MissionState.LIFT_RACK:
             self._run_lift_step(command=1, expected_state=1, elapsed=elapsed)
@@ -274,6 +363,8 @@ class DeliveryMission(Node):
             if self._qr_received == "END":
                 self._qr_received = ""
                 self._transition(MissionState.LOWER_RACK)
+            elif self._qr_received:
+                self._retry_after_unexpected_qr("END")
             elif elapsed > self._qr_timeout:
                 self._fail("Timed out waiting for the END QR marker")
 
@@ -290,6 +381,15 @@ class DeliveryMission(Node):
                 )
                 self._rack_index += 1
                 if self._rack_index >= len(self._labels):
+                    elapsed = (
+                        time.monotonic() - self._competition_started_at
+                        if self._competition_started_at is not None
+                        else 0.0
+                    )
+                    self.get_logger().info(
+                        f"Mission complete: delivered {len(self._labels)} racks "
+                        f"in {elapsed:.1f} s"
+                    )
                     self._transition(MissionState.COMPLETE)
                 else:
                     self._transition(MissionState.NAV_TO_RACK)
