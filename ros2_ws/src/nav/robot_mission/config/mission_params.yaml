@@ -5,7 +5,7 @@ delivery_mission:
     rack_labels: ["A", "B", "C", "D"]
     # Exact team-specific QR contents, in the same order as rack_labels.
     # Fill these before setting coordinates_confirmed to true.
-    rack_qr_codes: []
+    rack_qr_codes: ["", "", "", ""]
     # Placeholder values only. Replace with measured poses in the map frame (m, rad).
     rack_x_m: [0.0, 0.0, 0.0, 0.0]
     rack_y_m: [0.0, 0.0, 0.0, 0.0]
@@ -19,6 +19,10 @@ delivery_mission:
     lift_command_topic: /lift_cmd
     lift_state_topic: /lift_state
     qr_timeout_s: 15.0
+    # 0 means wait indefinitely before START; competition timing begins at START.
+    start_timeout_s: 0.0
+    # QR service responses and navigation cancellation response timeout.
+    request_timeout_s: 2.0
     lift_timeout_s: 8.0
     navigation_timeout_s: 90.0
     competition_time_s: 180.0

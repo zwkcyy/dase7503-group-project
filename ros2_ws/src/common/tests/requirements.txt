@@ -1,0 +1,4 @@
+# Host-side test environment only; do not replace the Pi's ROS/OpenCV packages.
+numpy==2.3.5
+opencv-python-headless==4.10.0.84
+PyYAML==6.0.3

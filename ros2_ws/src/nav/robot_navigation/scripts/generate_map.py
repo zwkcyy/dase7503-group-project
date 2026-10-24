@@ -15,6 +15,8 @@ Requirements: numpy, pyyaml (pillow only for --preview).
 """
 
 import argparse
+import math
+import re
 from pathlib import Path
 
 import numpy as np
@@ -30,7 +32,13 @@ PKG_DIR = Path(__file__).resolve().parent.parent
 
 def mm_to_cells(value_mm: float, resolution_mm: float) -> int:
     """Convert a length in mm to a whole number of cells."""
+    if not math.isfinite(resolution_mm) or resolution_mm <= 0:
+        raise ValueError("resolution_mm must be finite and greater than zero")
+    if not math.isfinite(value_mm) or value_mm < 0:
+        raise ValueError("lengths must be finite and nonnegative")
     cells = value_mm / resolution_mm
+    if not math.isfinite(cells):
+        raise ValueError("resolution_mm is too small for the field dimensions")
     if abs(cells - round(cells)) > 1e-6:
         print(f"[warn] {value_mm} mm is not a multiple of the resolution "
               f"{resolution_mm} mm, rounded to {round(cells)} cells")
@@ -42,14 +50,23 @@ def build_grid(cfg: dict) -> tuple[np.ndarray, dict]:
     field = cfg["field"]
     res = cfg["map"]["resolution_mm"]
 
+    for key in ("length_mm", "width_mm", "wall_thickness_mm"):
+        value = field[key]
+        if not math.isfinite(value) or value <= 0:
+            raise ValueError(f"field.{key} must be finite and greater than zero")
+
     inner_x = mm_to_cells(field["length_mm"], res)
     inner_y = mm_to_cells(field["width_mm"], res)
+    if inner_x < 1 or inner_y < 1:
+        raise ValueError("resolution_mm must leave at least one cell per field axis")
     wall = max(1, mm_to_cells(field["wall_thickness_mm"], res))
     margin = mm_to_cells(cfg["map"]["margin_mm"], res)
 
     offset = margin + wall  # cells from the map edge to the inner corner
     width = inner_x + 2 * offset
     height = inner_y + 2 * offset
+    if width * height > 100_000_000:
+        raise ValueError("map exceeds 100 million cells; increase resolution_mm")
 
     grid = np.full((height, width), UNKNOWN, dtype=np.uint8)
     # walls: the ring between the inner field and the outer wall face
@@ -148,10 +165,15 @@ def main() -> None:
     with open(args.config, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
 
-    grid, info = build_grid(cfg)
+    try:
+        name = cfg["map"]["name"]
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+            raise ValueError("map.name must use only letters, digits, underscores or hyphens")
+        grid, info = build_grid(cfg)
+    except (KeyError, TypeError, ValueError) as exc:
+        parser.error(f"Invalid field configuration: {exc}")
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
-    name = cfg["map"]["name"]
     pgm_path = args.out_dir / f"{name}.pgm"
     yaml_path = args.out_dir / f"{name}.yaml"
     write_pgm(pgm_path, grid)

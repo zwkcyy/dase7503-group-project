@@ -60,6 +60,21 @@ Debug image:
 No timeout is implemented in the vision module.
 Navigation or mission management handles timeout and retry.
 
+Repeated start requests succeed without resetting an active scan. Stop requests
+succeed even when already idle and clear confirmation history. A new scan starts
+with fresh history. Confirmation needs the same text on separate frames within
+`confirm_window` (default 0.8 s); the default is two hits at up to 10 Hz.
+
+The subscriber keeps only the latest image. Frames timestamped before the scan,
+and repeated or out-of-order nonzero timestamps, are ignored. The camera and
+scanner must use the same ROS clock; set `use_sim_time` consistently for replay.
+Sources using a zero timestamp remain supported, but cannot benefit from the
+timestamp freshness check. Time windows and throttling use a monotonic wall clock.
+
+CSV startup/write errors are logged without stopping QR delivery. Results are
+published before writing to disk. Debug images are drawn only when a subscriber
+is connected, and a debug conversion failure cannot suppress a confirmed result.
+
 ## Install Models
 
 Run:
@@ -90,6 +105,10 @@ If `camera_ros` is already running, leave it up and launch only the scanner:
 
 The launch file accepts `start_camera:=false` and `image_topic:=/your/image/topic`
 for an already running camera or a camera driver with a different image topic.
+It also accepts `use_sim_time:=true` and
+`camera_frame:=camera_optical_frame`. The default frame matches the optical frame
+in `robot_description`; the camera driver's private image topic is remapped to
+`image_topic`.
 
 ## Navigation Integration
 
@@ -117,9 +136,16 @@ Expected sequence:
 
     IDLE -> START SCAN -> QR CONFIRMED -> DATA PUBLISHED -> IDLE
 
-Successfully decoded the coursework END QR code.
+The [offline regression suite](../../common/tests/README.md) decodes generated
+START, END and all four rack codes using real OpenCV, and checks the scanner
+lifecycle with ROS transport fakes. Synthetic images do not establish camera
+performance under blur, glare, changing distance or rack occlusion. The optional
+WeChat models and the real cv_bridge/DDS path also require target-platform checks.
 
 ## Dependencies
 
-Requires ROS 2 Jazzy, camera_ros, OpenCV with WeChatQRCode,
-cv_bridge, NumPy and the downloaded QR models.
+Requires ROS 2 Jazzy, camera_ros, OpenCV QRCodeDetector, cv_bridge and NumPy.
+WeChatQRCode support and the four downloaded models are optional. Keep the Pi's
+ROS/OpenCV installation managed by apt/rosdep so cv_bridge uses compatible
+libraries; the isolated pip environment described in the offline suite is for
+host-side testing only.
