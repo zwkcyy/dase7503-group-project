@@ -189,6 +189,11 @@ class QRDetectorNode(Node):
             '/qr/start_scan',
             self.start_scan_callback
         )
+        self.stop_scan_service = self.create_service(
+            Trigger,
+            '/qr/stop_scan',
+            self.stop_scan_callback
+        )
 
         # =====================================================
         # Camera subscriber
@@ -279,6 +284,25 @@ class QRDetectorNode(Node):
             '=========================================='
         )
 
+        return response
+
+    def stop_scan_callback(self, request, response):
+
+        if not self.scanning_enabled:
+            response.success = False
+            response.message = 'QR scanner is already idle.'
+            return response
+
+        self.scanning_enabled = False
+        self.hit_history.clear()
+
+        detected_msg = Bool()
+        detected_msg.data = False
+        self.detected_pub.publish(detected_msg)
+
+        response.success = True
+        response.message = 'QR scanning stopped.'
+        self.get_logger().info('QR scan stopped by mission timeout.')
         return response
 
     # =========================================================

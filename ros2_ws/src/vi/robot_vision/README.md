@@ -31,6 +31,9 @@ Camera input:
 Start scanning:
 - `/qr/start_scan` (std_srvs/srv/Trigger)
 
+Stop scanning:
+- `/qr/stop_scan` (std_srvs/srv/Trigger)
+
 Scan result:
 - `/qr/data` (std_msgs/msg/String)
 

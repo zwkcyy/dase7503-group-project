@@ -1,0 +1,20 @@
+delivery_mission:
+  ros__parameters:
+    # Keep false until field, robot footprint, and pickup approach poses are measured.
+    coordinates_confirmed: false
+    rack_labels: ["A", "B", "C", "D"]
+    # Placeholder values only. Replace with measured poses in the map frame (m, rad).
+    rack_x_m: [0.0, 0.0, 0.0, 0.0]
+    rack_y_m: [0.0, 0.0, 0.0, 0.0]
+    rack_yaw_rad: [0.0, 0.0, 0.0, 0.0]
+    destination_x_m: 0.0
+    destination_y_m: 0.0
+    destination_yaw_rad: 0.0
+    qr_topic: /qr/data
+    qr_start_service: /qr/start_scan
+    qr_stop_service: /qr/stop_scan
+    lift_command_topic: /lift_cmd
+    lift_state_topic: /lift_state
+    qr_timeout_s: 15.0
+    lift_timeout_s: 8.0
+    navigation_timeout_s: 90.0
