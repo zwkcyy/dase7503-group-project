@@ -1,0 +1,4 @@
+[submodule "ec/firmware"]
+	path = ec/firmware
+	url = https://github.com/CaspianW/7503esp32.git
+	branch = main
