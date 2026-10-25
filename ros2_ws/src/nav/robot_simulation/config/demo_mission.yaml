@@ -1,0 +1,19 @@
+# SIMULATION ONLY. These coordinates and QR suffixes are fictional.
+delivery_mission:
+  ros__parameters:
+    coordinates_confirmed: true
+    manage_load_envelope: true
+    rack_labels: [A, B, C, D]
+    rack_qr_codes: [RACKA_DEMO, RACKB_DEMO, RACKC_DEMO, RACKD_DEMO]
+    rack_x_m: [0.6, 1.0, 2.0, 2.5]
+    rack_y_m: [1.5, 1.5, 1.5, 1.5]
+    rack_yaw_rad: [0.0, 0.0, 0.0, 0.0]
+    destination_x_m: 2.5
+    destination_y_m: 0.45
+    destination_yaw_rad: 0.0
+    qr_timeout_s: 4.0
+    start_timeout_s: 20.0
+    request_timeout_s: 2.0
+    lift_timeout_s: 4.0
+    navigation_timeout_s: 30.0
+    competition_time_s: 180.0

@@ -176,7 +176,7 @@ def load_module(name, relative_path, with_ros=False):
             add(package)
         add("std_msgs.msg", String=Message, Int8=Message, Bool=Message)
         add("sensor_msgs.msg", Image=Image)
-        add("std_srvs.srv", Trigger=Trigger)
+        add("std_srvs.srv", Trigger=Trigger, SetBool=Trigger)
         add("geometry_msgs.msg", PoseStamped=PoseStamped)
         add("nav2_msgs.action", NavigateToPose=SimpleNamespace(Goal=SimpleNamespace))
         add("action_msgs.msg", GoalStatus=SimpleNamespace(STATUS_SUCCEEDED=4))

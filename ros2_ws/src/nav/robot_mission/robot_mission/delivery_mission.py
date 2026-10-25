@@ -1,6 +1,7 @@
 """Run the QR-gated rack pickup and delivery sequence using Nav2."""
 
 import math
+import json
 import signal
 import time
 from enum import Enum, auto
@@ -15,7 +16,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import Int8, String
-from std_srvs.srv import Trigger
+from std_srvs.srv import Trigger, SetBool
 
 
 class MissionState(Enum):
@@ -62,6 +63,7 @@ class DeliveryMission(Node):
         self.declare_parameter("lift_timeout_s", 8.0)
         self.declare_parameter("navigation_timeout_s", 90.0)
         self.declare_parameter("competition_time_s", 180.0)
+        self.declare_parameter("manage_load_envelope", True)
 
         self._coordinates_confirmed = bool(
             self.get_parameter("coordinates_confirmed").value
@@ -159,6 +161,13 @@ class DeliveryMission(Node):
         self._scan_stop_sent_at = 0.0
         self._scan_stop_retry_at = 0.0
         self._scan_retry_at = 0.0
+        self._manage_envelope = self.get_parameter('manage_load_envelope').value
+        self._envelope_future = None
+        self._envelope_started = 0.0
+        self._envelope_ready = False
+        self._envelope_client = self.create_client(SetBool, '/nav/set_loaded')
+        self._status_pub = self.create_publisher(String, '/mission/status', 10)
+        self._status_timer = self.create_timer(.5, self._publish_status)
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._qr_scan_client = self.create_client(
@@ -208,6 +217,11 @@ class DeliveryMission(Node):
         self._lift_state = int(msg.data)
         self._lift_feedback_sequence += 1
 
+    def _publish_status(self):
+        self._status_pub.publish(String(data=json.dumps({
+            'state': self._state.name, 'rack_index': self._rack_index,
+            'rack_count': len(self._labels)})))
+
     def _transition(self, state: MissionState) -> None:
         self._state = state
         self._generation += 1
@@ -219,6 +233,11 @@ class DeliveryMission(Node):
         self._scan_requested = False
         self._scan_retry_at = 0.0
         self._lift_command_sequence = None
+        if self._envelope_future is not None:
+            self._envelope_client.remove_pending_request(self._envelope_future)
+            self._envelope_future.cancel()
+        self._envelope_future = None
+        self._envelope_ready = False
         if state in QR_STATES:
             # The scanner publishes one result per request; clear any stale result.
             self._qr_received = ""
@@ -555,6 +574,8 @@ class DeliveryMission(Node):
             return
         if (self._lift_feedback_sequence > self._lift_command_sequence
                 and self._lift_state == expected_state):
+            if not self._confirm_envelope(command == 1):
+                return
             if command == 1:
                 self._transition(MissionState.NAV_TO_DESTINATION)
             else:
@@ -576,6 +597,37 @@ class DeliveryMission(Node):
                 else:
                     self._transition(MissionState.NAV_TO_RACK)
             return
+
+    def _confirm_envelope(self, loaded: bool) -> bool:
+        if not self._manage_envelope or self._envelope_ready:
+            return True
+        if self._envelope_future is None:
+            if not self._envelope_client.service_is_ready():
+                return False  # The existing lift deadline bounds discovery too.
+            self._envelope_started = time.monotonic()
+            request = SetBool.Request()
+            request.data = loaded
+            try:
+                self._envelope_future = self._envelope_client.call_async(request)
+            except Exception as exc:
+                self._fail(f'Could not request load envelope: {exc}')
+            return False
+        if time.monotonic() - self._envelope_started >= self._request_timeout:
+            self._fail(f'Timed out updating load envelope after '
+                       f'{time.monotonic() - self._envelope_started:.3f}s '
+                       f'(limit {self._request_timeout:.3f}s); navigation remains stopped')
+            return False
+        if not self._envelope_future.done():
+            return False
+        try:
+            response = self._envelope_future.result()
+            if not response.success:
+                raise RuntimeError(response.message)
+            self._envelope_ready = True
+            return True
+        except Exception as exc:
+            self._fail(f'Load envelope update failed: {exc}')
+            return False
 
 
 def main(args: Iterable[str] | None = None) -> None:

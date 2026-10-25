@@ -293,8 +293,8 @@ velocity_smoother:
 #   would round them away,
 # - the field is small (~21k cells), so the CPU cost on the Pi is low.
 #
-# Footprint: chassis 0.28 x 0.28 m.
-# TODO: switch to the rack footprint while carrying a rack.
+# Template footprint only. Full bringup replaces both footprints and inflation
+# radius using the validated mechanical profile; load_envelope updates them after lifting.
 
 local_costmap:
   local_costmap:

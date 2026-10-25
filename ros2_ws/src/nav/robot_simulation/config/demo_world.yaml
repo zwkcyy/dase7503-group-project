@@ -1,0 +1,5 @@
+# SI units. Boundary matches the field map; the central box is a laser obstacle.
+size: [3.02, 2.0]
+initial_pose: [0.45, 0.45, 0.0]
+obstacles:
+  - [1.35, 0.75, 1.65, 1.25]

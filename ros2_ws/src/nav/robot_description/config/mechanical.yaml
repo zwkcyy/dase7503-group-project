@@ -1,0 +1,23 @@
+# Draft dimensions for visualisation only. CAD must confirm every measurement.
+confirmed: false
+body_length_mm: 280.0
+body_width_mm: 280.0
+body_height_mm: 100.0
+body_clearance_mm: 20.0
+wheel_radius_mm: 32.5
+wheel_width_mm: 30.0
+wheel_base_mm: 180.0
+wheel_track_mm: 200.0
+laser_xyz_mm: [0.0, 0.0, 150.0]
+laser_rpy_rad: [0.0, 0.0, 0.0]
+camera_xyz_mm: [140.0, 0.0, 120.0]
+camera_rpy_rad: [0.0, 0.0, 0.0]
+imu_xyz_mm: [0.0, 0.0, 50.0]
+imu_rpy_rad: [0.0, 0.0, 0.0]
+# Rectangles [min_x, min_y, max_x, max_y], relative to base_link.
+# Include all protruding parts. Loaded bounds must contain empty bounds.
+empty_bounds_mm: [-140.0, -140.0, 140.0, 140.0]
+loaded_bounds_mm: null
+footprint_padding_mm: 10.0
+self_filter_margin_mm: 20.0
+self_filter_z_mm: [-100.0, 500.0]

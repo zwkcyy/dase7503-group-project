@@ -10,20 +10,21 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     use_sim_time = LaunchConfiguration('use_sim_time')
-    sim = LaunchConfiguration('sim')
+    geometry_file = LaunchConfiguration('geometry_file')
 
     xacro_file = PathJoinSubstitution(
         [FindPackageShare('robot_description'), 'urdf', 'robot.urdf.xacro'])
     robot_description = ParameterValue(
-        Command(['xacro ', xacro_file, ' sim:=', sim]), value_type=str)
+        Command(['xacro "', xacro_file, '" geometry_file:="', geometry_file, '"']), value_type=str)
 
     return LaunchDescription([
         DeclareLaunchArgument(
             'use_sim_time', default_value='false',
             description='Use simulation clock if true'),
         DeclareLaunchArgument(
-            'sim', default_value='false',
-            description='Include simulation plugins in the URDF if true'),
+            'geometry_file', default_value=PathJoinSubstitution([
+                FindPackageShare('robot_description'), 'config', 'mechanical.yaml']),
+            description='Single CAD geometry file; millimetres and radians'),
 
         Node(
             package='robot_state_publisher',

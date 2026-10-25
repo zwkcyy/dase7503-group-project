@@ -8,7 +8,8 @@ scan_to_scan_filter_chain:
       params:
         box_frame: base_link
         # Chassis 0.28 x 0.28 m plus 0.02 m on each side.
-        # TODO: enlarge to the rack size while carrying a rack.
+        # Legacy standalone filter only. Full bringup uses load_envelope, which
+        # reads measured empty/loaded bounds and switches with acknowledged lift state.
         min_x: -0.16
         max_x: 0.16
         min_y: -0.16
