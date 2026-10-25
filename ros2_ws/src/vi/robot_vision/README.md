@@ -1,6 +1,6 @@
 # Robot Vision - DASE7503
 
-ROS 2 on-demand QR code scanner for Raspberry Pi 5.
+ROS 2 on-demand QR code scanner for Raspberry Pi 5, with an optional result window.
 
 ## Platform
 
@@ -110,6 +110,61 @@ It also accepts `use_sim_time:=true` and
 in `robot_description`; the camera driver's private image topic is remapped to
 `image_topic`.
 
+## Persistent result window
+
+The result window from `vision/qr-popup` is integrated as the optional `qr_popup`
+executable. It displays confirmed `/qr/data` results from the current scanner,
+with the full original text, its meaning, local receipt time, a copy button and
+a camera preview. The payload keeps its original case. A repeated payload keeps
+its displayed time; a different payload replaces it. Removing the QR, finishing
+a scan or losing the camera stream leaves the last result visible.
+
+Install the desktop dependencies on Ubuntu 24.04, then rebuild `robot_vision`
+using the build commands above:
+
+```bash
+sudo apt install python3-tk python3-pil python3-pil.imagetk
+```
+
+The package declares the corresponding rosdep keys, including
+`python3-pil-imagetk` (Ubuntu package `python3-pil.imagetk`). See the
+[official rosdep dependency mapping](https://github.com/ros/rosdistro/blob/master/rosdep/python.yaml).
+
+Start the camera, scanner and window together in a graphical desktop session:
+
+```bash
+ros2 launch robot_vision vision_bringup.launch.py show_results:=true
+```
+
+If the scanner and camera are already running, open only the window:
+
+```bash
+ros2 run robot_vision qr_popup
+# For an existing camera with a different topic:
+ros2 run robot_vision qr_popup --ros-args -p image_topic:=/your/image/topic
+```
+
+The launch defaults to `show_results:=false`, suitable for headless operation.
+Use a monitor or remote desktop for the window; a plain SSH shell without a
+graphical display cannot show it. Closing the window only stops the viewer.
+
+The viewer subscribes to `/qr/data`, `/camera/image_raw` and `/qr/debug_image`.
+During scanning it briefly prefers the detector's annotated images, then returns
+to the live camera feed. It does not decode images, publish commands or invoke
+scan services. The mission continues to control `/qr/start_scan` and
+`/qr/stop_scan`. For a standalone scan with the mission stopped, use the service
+command in the next section. Opening a window alone does not start a scan.
+
+Viewer parameters are `image_topic`, `debug_image_topic`, `result_topic` and
+`preview_hz` (default 10.0, valid range greater than 0 and at most 30). The launch
+also accepts `preview_hz:=5.0` to reduce preview work. Receipt time is the window's
+local wall-clock time: the existing String message does not carry capture time.
+
+Open the viewer before scanning. `/qr/data` carries new confirmations without
+replaying past messages, so opening or reopening a window waits for the next
+confirmation. Retention lasts while the window is open; the detector's CSV log
+continues to provide the recorded history separately.
+
 ## Navigation Integration
 
 Call the service after reaching the target:
@@ -131,6 +186,9 @@ Each successful scan publishes one result and returns to IDLE.
 The QR flow and expected topic/service sequence are documented here. Confirm the
 camera, model availability, and decoding reliability on the team's Raspberry Pi
 and camera before the competition.
+The window integration still needs a ROS 2 Jazzy desktop run with the team's
+camera. Existing offline detector checks do not validate Tk rendering, clipboard
+access or communication with the viewer.
 
 Expected sequence:
 
