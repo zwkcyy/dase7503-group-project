@@ -7,6 +7,7 @@ TF published here:
 """
 
 from launch import LaunchDescription
+from launch.conditions import UnlessCondition
 from launch.actions import (DeclareLaunchArgument, GroupAction,
                             IncludeLaunchDescription, SetEnvironmentVariable)
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -14,6 +15,7 @@ from launch_ros.actions import Node, SetParameter
 from launch_ros.descriptions import ParameterFile
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+from nav2_common.launch import RewrittenYaml
 
 
 def generate_launch_description():
@@ -27,7 +29,15 @@ def generate_launch_description():
     initial_y = LaunchConfiguration('initial_y')
     initial_yaw = LaunchConfiguration('initial_yaw')
 
-    nav2_params = ParameterFile(params_file, allow_substs=True)
+    # Rewrite the node-specific YAML: a wildcard parameter dictionary does not
+    # reliably override the nested AMCL values in a node-specific YAML file.
+    nav2_params = ParameterFile(RewrittenYaml(
+        source_file=params_file,
+        param_rewrites={
+            'amcl.ros__parameters.initial_pose.x': initial_x,
+            'amcl.ros__parameters.initial_pose.y': initial_y,
+            'amcl.ros__parameters.initial_pose.yaw': initial_yaw,
+        }, convert_types=True), allow_substs=True)
     ekf_params = PathJoinSubstitution([pkg_share, 'config', 'ekf.yaml'])
     laser_filter_params = PathJoinSubstitution([pkg_share, 'config', 'laser_filter.yaml'])
 
@@ -35,6 +45,9 @@ def generate_launch_description():
     ros_args = ['--ros-args', '--log-level', log_level]
 
     declare_args = [
+        DeclareLaunchArgument('external_scan_filter', default_value='false'),
+        DeclareLaunchArgument('geometry_file', default_value=PathJoinSubstitution([
+            FindPackageShare('robot_description'), 'config', 'mechanical.yaml'])),
         DeclareLaunchArgument(
             'use_sim_time', default_value='false',
             description='Use simulation clock if true'),
@@ -61,7 +74,8 @@ def generate_launch_description():
     description = IncludeLaunchDescription(
         PathJoinSubstitution(
             [FindPackageShare('robot_description'), 'launch', 'description.launch.py']),
-        launch_arguments={'use_sim_time': use_sim_time}.items(),
+        launch_arguments={'use_sim_time': use_sim_time,
+                          'geometry_file': LaunchConfiguration('geometry_file')}.items(),
     )
 
     nodes = GroupAction([
@@ -79,6 +93,7 @@ def generate_launch_description():
         # internal lifecycle node and create two nodes with the same name.
         Node(
             package='laser_filters',
+            condition=UnlessCondition(LaunchConfiguration('external_scan_filter')),
             executable='scan_to_scan_filter_chain',
             output='screen',
             parameters=[laser_filter_params],

@@ -30,7 +30,9 @@ into the Pi's ROS Python environment; its cv_bridge uses system libraries.
 
 ## Limits and checks on the robot
 
-These are offline regression checks, not ROS integration or physical acceptance.
+The unittest suite above checks offline logic. The separate opt-in ROS integration
+runner below checks live DDS, services/actions and a planar simulation. Neither
+establishes physical acceptance.
 Before a run, verify on ROS 2 Jazzy:
 
 1. Build with colcon and start NAV, vision and mission with the measured settings.
@@ -49,3 +51,24 @@ Before a run, verify on ROS 2 Jazzy:
 
 No new requests for EC internal motor, PID, encoder or gear parameters are added
 by these regression checks.
+
+## ROS integration runner
+
+Build `robot_geometry`, `robot_description`, `robot_navigation`, `robot_mission`,
+`robot_vision` and `robot_simulation`, then source the workspace. From the repo root:
+
+```bash
+python3 ros2_ws/src/common/tests/ros_integration.py rehearsal /tmp/nav-checks
+python3 ros2_ws/src/common/tests/ros_integration.py navigation /tmp/nav-checks
+python3 ros2_ws/src/common/tests/ros_integration.py vision /tmp/nav-checks
+python3 ros2_ws/src/common/tests/ros_integration.py cancellation /tmp/nav-checks
+python3 ros2_ws/src/common/tests/ros_integration.py envelope /tmp/nav-checks
+```
+
+The runner starts only its own processes in localhost ROS domains 100-117 and
+stops them at completion. The envelope check uses domain 118. It writes full logs and JSON summaries. Reserve those
+domains during a run. Rehearsal covers success, wrong/missing QR, lift timeout,
+navigation abort/reject/timeout, envelope failure and the competition deadline.
+Navigation uses actual Nav2/EKF/AMCL with synthetic sensors and mock QR/lift.
+Vision decodes generated frames using the production node. Cancellation leaves
+the mock peers alive while interrupting the mission and checks both stop and cancel.

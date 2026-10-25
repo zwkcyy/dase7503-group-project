@@ -67,6 +67,16 @@ map pose through the localisation workflow before expecting Nav2 goals to run.
 `use_sim_time:=true` is available for ROS timestamps; mission deadlines still use
 a monotonic wall clock, including when simulation is paused.
 
+## Load envelope acknowledgement
+
+With `manage_load_envelope: true` (the default), start the full NAV bringup too.
+After each fresh lift completion the mission calls `/nav/set_loaded`
+(`std_srvs/srv/SetBool`). Both costmaps and the laser self-filter must acknowledge
+the change before the mission sends its next navigation goal. Rejection, missing
+service or timeout ends the mission. Disabling this parameter is only for an
+explicit alternative integration that manages both footprints and filtering.
+`/mission/status` publishes JSON state, rack index and rack count at 2 Hz.
+
 ## Offline regression checks
 
 See [the NAV/VI regression suite](../../common/tests/README.md) for a complete

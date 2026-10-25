@@ -21,6 +21,7 @@ class MissionTests(unittest.TestCase):
         self.addCleanup(timer.stop)
         overrides = patch.object(Node, "overrides", {
             "coordinates_confirmed": True,
+            "manage_load_envelope": False,
             "rack_qr_codes": [f"RACK{label}_aB12" for label in "ABCD"],
         })
         overrides.start()
@@ -292,6 +293,52 @@ class MissionTests(unittest.TestCase):
         self.node._tick()
         self.assertEqual(self.node._state, State.ERROR)
         self.assertFalse(self.node._nav_client.calls)
+
+    def test_lift_waits_for_envelope_acknowledgement(self):
+        self.node._manage_envelope = True
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        self.assertEqual(self.node._state, State.LIFT_RACK)
+        self.assertEqual(len(self.node._envelope_client.calls), 1)
+        self.node._envelope_client.calls[0][1].set_result(Trigger.Response(True))
+        self.node._tick()
+        self.assertEqual(self.node._state, State.NAV_TO_DESTINATION)
+        self.assertEqual(len(self.node._lift_pub.messages), 1)
+
+    def test_rejected_envelope_stops_mission(self):
+        self.node._manage_envelope = True
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        self.node._envelope_client.calls[0][1].set_result(Trigger.Response(False, 'rejected'))
+        self.node._tick()
+        self.assertEqual(self.node._state, State.ERROR)
+        self.assertFalse(self.node._nav_client.calls)
+
+    def test_late_envelope_ack_cannot_bypass_timeout(self):
+        self.node._manage_envelope = True
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        self.now += self.node._request_timeout
+        self.node._envelope_client.calls[0][1].set_result(Trigger.Response(True))
+        self.node._tick()
+        self.assertEqual(self.node._state, State.ERROR)
+
+    def test_missing_envelope_service_is_bounded_by_lift_deadline(self):
+        self.node._manage_envelope = True
+        self.node._envelope_client.ready = False
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        self.now += self.node._lift_timeout
+        self.node._tick()
+        self.assertEqual(self.node._state, State.ERROR)
+
+    def test_stop_cancels_envelope_wait(self):
+        self.node._manage_envelope = True
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        future = self.node._envelope_future
+        self.node.request_stop()
+        self.assertTrue(future.cancelled())
 
     def test_invalid_timeout_and_pose_parameters_rejected(self):
         cases = [("qr_timeout_s", math.nan), ("lift_timeout_s", math.inf),

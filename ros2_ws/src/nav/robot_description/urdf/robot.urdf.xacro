@@ -7,36 +7,22 @@
 -->
 <robot name="dase7503_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <!-- Set to true by the simulation launch to include Gazebo plugins (not used yet) -->
-  <xacro:arg name="sim" default="false"/>
-
-  <!-- ===== Dimensions ===== -->
-  <!-- Chassis box -->
-  <xacro:property name="body_length" value="0.28"/>      <!-- TODO: replace with CAD table value -->
-  <xacro:property name="body_width" value="0.28"/>       <!-- TODO: replace with CAD table value -->
-  <xacro:property name="body_height" value="0.10"/>      <!-- TODO: replace with CAD table value -->
-  <xacro:property name="body_clearance" value="0.02"/>   <!-- TODO: replace with CAD table value (ground to chassis bottom) -->
-
-  <!-- Wheels (visual only) -->
-  <xacro:property name="wheel_radius" value="0.0325"/>   <!-- TODO: replace with CAD table value -->
-  <xacro:property name="wheel_width" value="0.03"/>      <!-- TODO: replace with CAD table value -->
-  <xacro:property name="wheel_base" value="0.18"/>       <!-- TODO: replace with CAD table value (front-rear axle distance) -->
-  <xacro:property name="wheel_track" value="0.20"/>      <!-- TODO: replace with CAD table value (left-right wheel distance) -->
-
-  <!-- Sensors, positions relative to base_link -->
-  <xacro:property name="laser_x" value="0.0"/>           <!-- TODO: replace with CAD table value -->
-  <xacro:property name="laser_y" value="0.0"/>           <!-- TODO: replace with CAD table value -->
-  <xacro:property name="laser_z" value="0.15"/>          <!-- TODO: replace with CAD table value -->
-  <xacro:property name="laser_yaw" value="0.0"/>         <!-- TODO: replace with CAD table value -->
-
-  <xacro:property name="camera_x" value="${body_length / 2}"/>  <!-- TODO: replace with CAD table value -->
-  <xacro:property name="camera_y" value="0.0"/>          <!-- TODO: replace with CAD table value -->
-  <xacro:property name="camera_z" value="0.12"/>         <!-- TODO: replace with CAD table value -->
-  <xacro:property name="camera_pitch" value="0.0"/>      <!-- TODO: replace with CAD table value -->
-
-  <xacro:property name="imu_x" value="0.0"/>             <!-- TODO: replace with CAD table value -->
-  <xacro:property name="imu_y" value="0.0"/>             <!-- TODO: replace with CAD table value -->
-  <xacro:property name="imu_z" value="0.05"/>            <!-- TODO: replace with CAD table value -->
+  <xacro:arg name="geometry_file" default="$(find robot_description)/config/mechanical.yaml"/>
+  <xacro:property name="g" value="${xacro.load_yaml('$(arg geometry_file)')}"/>
+  <xacro:property name="body_length" value="${g['body_length_mm'] / 1000}"/>
+  <xacro:property name="body_width" value="${g['body_width_mm'] / 1000}"/>
+  <xacro:property name="body_height" value="${g['body_height_mm'] / 1000}"/>
+  <xacro:property name="body_clearance" value="${g['body_clearance_mm'] / 1000}"/>
+  <xacro:property name="wheel_radius" value="${g['wheel_radius_mm'] / 1000}"/>
+  <xacro:property name="wheel_width" value="${g['wheel_width_mm'] / 1000}"/>
+  <xacro:property name="wheel_base" value="${g['wheel_base_mm'] / 1000}"/>
+  <xacro:property name="wheel_track" value="${g['wheel_track_mm'] / 1000}"/>
+  <xacro:property name="laser_xyz" value="${g['laser_xyz_mm']}"/>
+  <xacro:property name="laser_rpy" value="${g['laser_rpy_rad']}"/>
+  <xacro:property name="camera_xyz" value="${g['camera_xyz_mm']}"/>
+  <xacro:property name="camera_rpy" value="${g['camera_rpy_rad']}"/>
+  <xacro:property name="imu_xyz" value="${g['imu_xyz_mm']}"/>
+  <xacro:property name="imu_rpy" value="${g['imu_rpy_rad']}"/>
 
   <!-- ===== Materials ===== -->
   <material name="body_grey">
@@ -102,7 +88,7 @@
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser"/>
-    <origin xyz="${laser_x} ${laser_y} ${laser_z}" rpy="0 0 ${laser_yaw}"/>
+    <origin xyz="${laser_xyz[0]/1000} ${laser_xyz[1]/1000} ${laser_xyz[2]/1000}" rpy="${laser_rpy[0]} ${laser_rpy[1]} ${laser_rpy[2]}"/>
   </joint>
 
   <!-- camera_link follows the ROS body convention (x forward). -->
@@ -118,20 +104,17 @@
   <joint name="camera_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_link"/>
-    <origin xyz="${camera_x} ${camera_y} ${camera_z}" rpy="0 ${camera_pitch} 0"/>
+    <origin xyz="${camera_xyz[0]/1000} ${camera_xyz[1]/1000} ${camera_xyz[2]/1000}" rpy="${camera_rpy[0]} ${camera_rpy[1]} ${camera_rpy[2]}"/>
   </joint>
 
   <link name="imu_link"/>
   <joint name="imu_joint" type="fixed">
     <parent link="base_link"/>
     <child link="imu_link"/>
-    <origin xyz="${imu_x} ${imu_y} ${imu_z}" rpy="0 0 0"/>
+    <origin xyz="${imu_xyz[0]/1000} ${imu_xyz[1]/1000} ${imu_xyz[2]/1000}" rpy="${imu_rpy[0]} ${imu_rpy[1]} ${imu_rpy[2]}"/>
   </joint>
 
-  <!-- ===== Simulation ===== -->
-  <xacro:if value="$(arg sim)">
-    <!-- Gazebo plugins will be included here -->
-  </xacro:if>
+  <!-- Planar simulation is provided by robot_simulation. -->
 
   <!-- REP-103 optical axes: x right, y down, z forward. The camera's physical
        translation and pitch above still need to be measured from the CAD. -->

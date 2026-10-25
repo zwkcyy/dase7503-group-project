@@ -2,6 +2,8 @@ delivery_mission:
   ros__parameters:
     # Keep false until field, robot footprint, and pickup approach poses are measured.
     coordinates_confirmed: false
+    # Requires robot_navigation bringup and confirmed mechanical geometry.
+    manage_load_envelope: true
     rack_labels: ["A", "B", "C", "D"]
     # Exact team-specific QR contents, in the same order as rack_labels.
     # Fill these before setting coordinates_confirmed to true.
