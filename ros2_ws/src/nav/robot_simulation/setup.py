@@ -9,4 +9,5 @@ setup(name='robot_simulation', version='0.1.0', packages=['robot_simulation'],
       install_requires=['setuptools'], entry_points={'console_scripts': [
           'planar_base = robot_simulation.planar_base:main',
           'mock_peers = robot_simulation.mock_peers:main',
+          'mission_camera = robot_simulation.mission_camera:main',
           'image_replay = robot_simulation.image_replay:main']})

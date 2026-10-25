@@ -72,3 +72,32 @@ navigation abort/reject/timeout, envelope failure and the competition deadline.
 Navigation uses actual Nav2/EKF/AMCL with synthetic sensors and mock QR/lift.
 Vision decodes generated frames using the production node. Cancellation leaves
 the mock peers alive while interrupting the mission and checks both stop and cancel.
+
+## Complete image-to-mission integration
+
+Build the additional `robot_bringup` package (the repository's `scripts/nav.sh build`
+does this automatically). New modes:
+
+```bash
+bash scripts/nav.sh check integrated
+bash scripts/nav.sh check integrated_faults
+bash scripts/nav.sh check preflight
+bash scripts/nav.sh check robustness
+```
+
+The integrated modes use domains 120-121, actual Nav2 and actual QR decoding.
+They require the expected full QR sequence, eight load changes and one QR result
+publisher named qr_detector. The mock peer provides lift feedback only. Nine exact
+confirming images and six distinct QR categories must be saved for a successful run.
+Wrong and blank images exercise the production scanner and task QR deadline.
+Readiness checks use domains 125-130 for healthy, stale, empty, missing-service,
+duplicate-result-publisher and missing-stream cases. Run suites sequentially.
+
+The robustness command measures 71 deterministic image cases, three attempts each,
+using the production OpenCV fallback with ROS boundaries replaced. Required clean
+and 90-degree samples must decode, and all cases must avoid false positives.
+Other distortions are measured limitations, not assumed camera acceptance targets.
+JSON/CSV and a visual HTML index are saved in `output/nav-validation-current/robustness`.
+
+GitHub Actions runs only the offline logic and robustness checks on Ubuntu 24.04.
+ROS checks remain an explicit local workflow and are not claimed as CI coverage.

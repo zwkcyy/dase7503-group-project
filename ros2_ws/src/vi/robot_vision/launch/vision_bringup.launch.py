@@ -20,6 +20,8 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument('evidence_dir', default_value=''),
+            DeclareLaunchArgument('evidence_source', default_value='unspecified'),
             DeclareLaunchArgument(
                 "show_results",
                 default_value="false",
@@ -82,6 +84,8 @@ def generate_launch_description():
                         "image_topic": ParameterValue(image_topic, value_type=str),
                         "model_dir": ParameterValue(model_dir, value_type=str),
                         "log_file": ParameterValue(log_file, value_type=str),
+                        "evidence_dir": ParameterValue(LaunchConfiguration('evidence_dir'), value_type=str),
+                        "evidence_source": ParameterValue(LaunchConfiguration('evidence_source'), value_type=str),
                         "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
                     }
                 ],

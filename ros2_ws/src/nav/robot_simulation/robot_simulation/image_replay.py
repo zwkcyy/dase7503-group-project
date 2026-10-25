@@ -51,7 +51,9 @@ class ImageReplay(Node):
                     return
                 qr = cv2.QRCodeEncoder_create().encode(payload)
                 qr = np.pad(qr, 4, constant_values=255)
-                self.frame = cv2.cvtColor(cv2.resize(qr, (480, 480), interpolation=cv2.INTER_NEAREST), cv2.COLOR_GRAY2BGR)
+                # Synthetic codes have no colour information. Bound DDS traffic
+                # to one 320x320 channel; real video retains its BGR encoding.
+                self.frame = cv2.resize(qr, (320, 320), interpolation=cv2.INTER_NEAREST)
                 self.payload = payload
         if self.capture:
             ok, frame = self.capture.read()
@@ -63,7 +65,7 @@ class ImageReplay(Node):
                 self.get_logger().info('Replay ended')
                 return
             self.frame = frame
-        msg = self.bridge.cv2_to_imgmsg(self.frame, encoding='bgr8')
+        msg = self.bridge.cv2_to_imgmsg(self.frame, encoding='mono8' if self.generated else 'bgr8')
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'camera_optical_frame'
         self.publisher.publish(msg)

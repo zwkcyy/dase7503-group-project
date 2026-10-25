@@ -186,9 +186,9 @@ Each successful scan publishes one result and returns to IDLE.
 The QR flow and expected topic/service sequence are documented here. Confirm the
 camera, model availability, and decoding reliability on the team's Raspberry Pi
 and camera before the competition.
-The window integration still needs a ROS 2 Jazzy desktop run with the team's
-camera. Existing offline detector checks do not validate Tk rendering, clipboard
-access or communication with the viewer.
+The result window and replay-to-scanner ROS path have been exercised on WSL 2
+with generated RACKA_DEMO and END images. Target-camera rendering, clipboard access
+and optical performance on the team's Raspberry Pi remain hardware checks.
 
 Expected sequence:
 
@@ -199,6 +199,25 @@ START, END and all four rack codes using real OpenCV, and checks the scanner
 lifecycle with ROS transport fakes. Synthetic images do not establish camera
 performance under blur, glare, changing distance or rack occlusion. The optional
 WeChat models and the real cv_bridge/DDS path also require target-platform checks.
+
+## Confirmation artifacts and bounded image work
+
+Set `evidence_dir` to save the exact input frame that triggered each confirmation,
+along with the full payload, image timestamp, decoder and `evidence_source` label.
+It defaults to disabled. Files use unique names independent of the QR payload;
+write failures are logged after result publication and cannot suppress the result.
+The integrated demo enables this feature with the `synthetic_task_images` source.
+These input images are not screenshots of the result window or physical acceptance.
+
+OpenCV uses one worker thread by default to share CPU with Nav2/EKF. Set
+`opencv_threads` from 1 to 4 only after measuring target performance. If decoding
+fails on an image smaller than 240 pixels on its longest side, a single bounded
+linear-upscale retry runs and its corner coordinates are converted back to the
+original image. Strong motion blur still needs better capture conditions.
+
+Use `bash scripts/nav.sh check robustness` from the repository root for the
+production decoder's synthetic distortion report; optional WeChat models are
+deliberately excluded from that fallback benchmark.
 
 ## Dependencies
 

@@ -60,6 +60,14 @@ class QRDetectorNode(Node):
             'log_file',
             '~/.ros/robot_vision/qr_scan_log.csv'
         )
+        self.declare_parameter('evidence_dir', '')
+        self.declare_parameter('evidence_source', 'unspecified')
+        self.declare_parameter('opencv_threads', 1)
+        opencv_threads = self.get_parameter('opencv_threads').value
+        if isinstance(opencv_threads, bool) or not isinstance(opencv_threads, int) or not 1 <= opencv_threads <= 4:
+            raise ValueError('opencv_threads must be an integer from 1 to 4')
+        # Avoid oversubscribing the shared Pi/WSL CPU alongside Nav2 and the EKF.
+        cv2.setNumThreads(opencv_threads)
 
         self.image_topic = (
             self.get_parameter('image_topic')
@@ -527,6 +535,15 @@ class QRDetectorNode(Node):
                 if self.valid_pattern.fullmatch(result[0]) is not None
             ]
 
+        # Bound the retry cost and restore polygons to the original image frame.
+        if not results and 0 < max(frame.shape[:2]) < 240:
+            scale = min(4.0, 480.0 / max(frame.shape[:2]))
+            enlarged = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+            for data, points, detector in self.detect_with_opencv(enlarged):
+                if self.valid_pattern.fullmatch(data):
+                    results.append((data, points / scale if points is not None else None,
+                                    detector + '+resize'))
+
         valid_results = []
 
         for data, points, detector in results:
@@ -661,6 +678,14 @@ class QRDetectorNode(Node):
             hits = sum(code == data for _, code, _ in self.hit_history)
             if hits >= self.confirm_hits:
                 self.confirm_qr(data, detector)
+                directory = self.get_parameter('evidence_dir').value
+                if directory:
+                    try:
+                        from robot_vision.evidence import save_confirmation
+                        save_confirmation(directory, data, detector, frame, stamp_ns,
+                                          self.get_parameter('evidence_source').value)
+                    except Exception as exc:
+                        self.get_logger().error(f'Could not save QR evidence: {exc}')
 
         # Save Pi CPU and image copies when no viewer is connected. Debug drawing
         # must never prevent a confirmed result from reaching the mission.

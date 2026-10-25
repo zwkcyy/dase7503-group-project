@@ -2,6 +2,10 @@
 
 更新：2026-10-25。环境：Windows + WSL 2 Ubuntu 24.04 + ROS 2 Jazzy。
 
+后续新增的完整联跑、自检和一键脚本见 [一键运行与交付](NAV_VI_一键运行与交付.md)。
+当前构建已包含第七个包 `robot_bringup`，推荐在仓库中执行 `bash scripts/nav.sh build`。
+以下保留原先各组件的单独运行方法；导航加真实视觉的自动演示使用 `bash scripts/nav.sh demo`。
+
 ## 现在完成了什么
 
 | 工作 | 状态与边界 |
