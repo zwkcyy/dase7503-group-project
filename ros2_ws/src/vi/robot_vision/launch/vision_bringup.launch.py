@@ -15,9 +15,21 @@ def generate_launch_description():
     log_file = LaunchConfiguration("log_file")
     use_sim_time = LaunchConfiguration("use_sim_time")
     camera_frame = LaunchConfiguration("camera_frame")
+    show_results = LaunchConfiguration("show_results")
+    preview_hz = LaunchConfiguration("preview_hz")
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "show_results",
+                default_value="false",
+                description="Show the persistent QR result window (requires a desktop)",
+            ),
+            DeclareLaunchArgument(
+                "preview_hz",
+                default_value="10.0",
+                description="Maximum window preview updates per second for each image topic",
+            ),
             DeclareLaunchArgument(
                 "use_sim_time",
                 default_value="false",
@@ -73,6 +85,18 @@ def generate_launch_description():
                         "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
                     }
                 ],
+            ),
+            Node(
+                package="robot_vision",
+                executable="qr_popup",
+                name="qr_popup",
+                output="screen",
+                condition=IfCondition(show_results),
+                parameters=[{
+                    "image_topic": ParameterValue(image_topic, value_type=str),
+                    "preview_hz": ParameterValue(preview_hz, value_type=float),
+                    "use_sim_time": ParameterValue(use_sim_time, value_type=bool),
+                }],
             ),
         ]
     )

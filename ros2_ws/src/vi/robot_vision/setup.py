@@ -41,6 +41,7 @@ setup(
     entry_points={
         'console_scripts': [
             'qr_detector_node = robot_vision.qr_detector_node:main',
+            'qr_popup = robot_vision.qr_popup:main',
         ],
     },
 )
