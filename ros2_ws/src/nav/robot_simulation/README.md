@@ -13,6 +13,22 @@ export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 
 ## 1. Task rehearsal
 
+For the complete automatic workflow with actual image decoding, use:
+
+```bash
+ros2 launch robot_simulation integrated_demo.launch.py
+```
+
+It opens RViz and the QR window, waits for a read-only readiness check, then starts
+the mission. Set `rviz:=false show_results:=false` for headless runs. It saves run
+events and the exact confirming frames in a fresh `~/.ros/nav_vi_runs/` directory.
+The camera is a task-driven image fixture, not a geometric optical sensor model;
+lift and motion physics remain simulated. `image_scenario:=wrong_qr` or
+`image_scenario:=missing_qr` checks task failure using actual image decoding.
+Use a fresh path for each explicit `output_dir` to keep records separate.
+
+The lower-level rehearsal below intentionally retains all mock peers.
+
 ```bash
 ros2 launch robot_simulation rehearsal.launch.py
 ```

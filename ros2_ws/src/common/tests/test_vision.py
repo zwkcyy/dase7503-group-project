@@ -64,6 +64,31 @@ class VisionTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertIsNone(self.node.detect_qr(qr_image(text)))
 
+    def test_small_image_retry_restores_polygon_coordinates(self):
+        small = cv2.resize(qr_image('RACKA_DEMO'), (96, 96), interpolation=cv2.INTER_AREA)
+        result = self.node.detect_qr(small)
+        self.assertIsNotNone(result)
+        self.assertEqual(result[0], 'RACKA_DEMO')
+        self.assertTrue(np.all(result[1] >= 0) and np.all(result[1] < 96))
+
+    def test_opencv_thread_limit_is_bounded(self):
+        for value in (0, 5, True, 1.5):
+            with self.subTest(value=value), patch.dict(Node.overrides, {'opencv_threads': value}):
+                with self.assertRaisesRegex(ValueError, 'opencv_threads'):
+                    vision.QRDetectorNode()
+
+    def test_evidence_write_failure_does_not_block_confirmation(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'vi/robot_vision'))
+        with patch.dict(Node.overrides, {'evidence_dir': str(self.directory/'evidence')}):
+            self.node = vision.QRDetectorNode()
+        with patch('robot_vision.evidence.save_confirmation', side_effect=OSError('disk unavailable')):
+            self.start()
+            self.frame()
+            self.frame()
+        self.assertEqual([msg.data for msg in self.node.data_pub.messages], ['START'])
+        self.assertFalse(self.node.scanning_enabled)
+
     def test_two_distinct_frames_publish_once_and_return_to_idle(self):
         self.start()
         self.frame("RACKA_aB12")

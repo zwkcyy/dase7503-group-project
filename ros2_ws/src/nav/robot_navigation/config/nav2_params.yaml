@@ -83,7 +83,10 @@ bt_navigator:
     odom_topic: /odometry/filtered
     transform_tolerance: 0.1
     bt_loop_duration: 10
-    default_server_timeout: 20
+    # Milliseconds for action acknowledgement, not navigation duration.
+    # 20 ms caused spurious aborts while image decoding and DDS were busy in WSL.
+    default_server_timeout: 500
+    default_cancel_timeout: 500
     wait_for_service_timeout: 1000
     action_server_result_timeout: 900.0
     navigators: ["navigate_to_pose", "navigate_through_poses"]

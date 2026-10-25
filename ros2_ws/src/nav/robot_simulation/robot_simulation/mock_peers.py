@@ -24,6 +24,7 @@ class MockPeers(Node):
         require_isolated_domain()
         self.declare_parameter('mock_navigation', True)
         self.declare_parameter('mock_envelope', True)
+        self.declare_parameter('mock_qr', True)
         self.declare_parameter('scenario', 'success')
         self.scenario = self.get_parameter('scenario').value
         allowed = {'success', 'wrong_qr', 'missing_qr', 'lift_timeout', 'navigation_abort',
@@ -39,14 +40,16 @@ class MockPeers(Node):
         self.nav_state_future = None
         self.nav_state_client = None if self.nav_ready else self.create_client(GetState, '/bt_navigator/get_state')
         self.group = ReentrantCallbackGroup()
-        self.qr_pub = self.create_publisher(String, '/qr/data', 10)
+        self.qr_pub = (self.create_publisher(String, '/qr/data', 10)
+                       if self.get_parameter('mock_qr').value else None)
         self.lift_pub = self.create_publisher(Int8, '/lift_state', 10)
         self.events = self.create_publisher(String, '/simulation/events',
             QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         self.create_subscription(String, '/mission/status', self.status, 10)
         self.create_subscription(Int8, '/lift_cmd', self.lift, 10)
-        self.create_service(Trigger, '/qr/start_scan', self.start_scan)
-        self.create_service(Trigger, '/qr/stop_scan', self.stop_scan)
+        if self.qr_pub is not None:
+            self.create_service(Trigger, '/qr/start_scan', self.start_scan)
+            self.create_service(Trigger, '/qr/stop_scan', self.stop_scan)
         if self.get_parameter('mock_envelope').value:
             self.create_service(SetBool, '/nav/set_loaded', self.envelope)
         self.action = None
@@ -55,7 +58,7 @@ class MockPeers(Node):
                 goal_callback=lambda goal: GoalResponse.REJECT if self.scenario == 'navigation_reject' else GoalResponse.ACCEPT,
                 cancel_callback=lambda goal: CancelResponse.ACCEPT, callback_group=self.group)
         self.create_timer(.05, self.tick, callback_group=self.group)
-        self.get_logger().warning(f'MOCK QR AND LIFT: scenario={self.scenario}; simulated results only')
+        self.get_logger().warning(f'MOCK LIFT: scenario={self.scenario}; mock_qr={self.qr_pub is not None}')
 
     def event(self, name, **fields):
         text = json.dumps({'event': name, **fields})

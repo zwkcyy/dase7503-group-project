@@ -1,0 +1,16 @@
+# Local instructions and generated development artifacts
+CLAUDE.md
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv*/
+build/
+install/
+log/
+.pio/
+output/
+tmp/
+~$*
+.env
+.env.*
+!.env.example

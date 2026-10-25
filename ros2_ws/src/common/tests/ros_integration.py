@@ -9,6 +9,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 
 import rclpy
 from rclpy.node import Node
@@ -25,6 +26,9 @@ from rclpy.qos import qos_profile_sensor_data, QoSProfile, DurabilityPolicy
 def spin_until(node, predicate, timeout):
     deadline = time.monotonic() + timeout
     while not predicate() and time.monotonic() < deadline:
+        process = getattr(node, '_checked_launch_process', None)
+        if process is not None and process.poll() is not None:
+            raise AssertionError(f'Launch exited before the expected outcome (code {process.returncode})')
         rclpy.spin_once(node, timeout_sec=.1)
     if not predicate():
         raise AssertionError(f'Condition timed out after {timeout}s')
@@ -51,6 +55,7 @@ def run_case(name, launch, arguments, domain, outdir, check, expected_log=None):
             process = subprocess.Popen(['ros2', 'launch', 'robot_simulation', launch,
                                         f'domain_id:={domain}', *arguments],
                                        env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            node._checked_launch_process = process
             result.update(check(node))
             result['passed'] = True
         except Exception as exc:
@@ -69,19 +74,31 @@ def run_case(name, launch, arguments, domain, outdir, check, expected_log=None):
     result['seconds'] = round(time.monotonic()-started, 2)
     if expected_log and expected_log not in path.read_text():
         result['passed'] = False
-        result['error'] = f'Missing expected outcome: {expected_log}'
+        result['error'] = result.get('error', '') + f'; missing expected outcome: {expected_log}'
     print(json.dumps(result), flush=True)
     return result
 
 
-def mission_check(expected, timeout=35, navigation=False):
+def mission_check(expected, timeout=35, navigation=False, real_vision=False, frame_dir=None):
     def check(node):
-        states, events, loads = [], [], []
+        states, events, loads, codes = [], [], [], []
         counts = {'scan': 0, 'odometry': 0}
         node.create_subscription(String, '/mission/status', lambda msg: states.append(json.loads(msg.data)), 10)
         node.create_subscription(String, '/simulation/events', lambda msg: events.append(json.loads(msg.data)),
                                  QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL))
         node.create_subscription(Bool, '/nav/loaded', lambda msg: loads.append(msg.data), 10)
+        node.create_subscription(String, '/qr/data', lambda msg: codes.append(msg.data), 10)
+        if frame_dir:
+            from cv_bridge import CvBridge
+            import cv2
+            frame_dir.mkdir(parents=True, exist_ok=True)
+            frame_counter = [0]
+            def record_frame(msg):
+                frame_counter[0] += 1
+                if frame_counter[0] % 10 == 0:
+                    state = states[-1]['state'] if states else 'STARTUP'
+                    cv2.imwrite(str(frame_dir/(state+'.png')), CvBridge().imgmsg_to_cv2(msg, 'bgr8'))
+            node.create_subscription(Image, '/camera/image_raw', record_frame, qos_profile_sensor_data)
         def count(key):
             def callback(msg):
                 counts[key] += 1
@@ -96,7 +113,17 @@ def mission_check(expected, timeout=35, navigation=False):
         if navigation:
             assert counts['scan'] > 20 and counts['odometry'] > 20, counts
             assert loads[-8:] == [True, False]*4, loads
-        return {'final_status': states[-1], 'sensor_messages': counts, 'load_changes': loads}
+        if real_vision:
+            publishers = node.get_publishers_info_by_topic('/qr/data')
+            assert len(publishers) == 1 and publishers[0].node_name == 'qr_detector', publishers
+            assert not any(e['event'] == 'mock_qr' for e in events), events
+            if expected == 'COMPLETE':
+                sequence = ['START']
+                for label in 'ABCD':
+                    sequence.extend([f'RACK{label}_DEMO', 'END'])
+                assert codes == sequence, codes
+        return {'final_status': states[-1], 'sensor_messages': counts, 'load_changes': loads,
+                'decoded_payloads': codes, 'real_vision': real_vision}
     return check
 
 
@@ -107,7 +134,7 @@ def vision_check(node):
     start = node.create_client(Trigger, '/qr/start_scan')
     params = node.create_client(SetParameters, '/image_replay/set_parameters')
     spin_until(node, lambda: len(images) >= 3, 20)
-    for index, payload in enumerate(('START', 'RACKA_DEMO', 'END')):
+    for index, payload in enumerate(('START', 'RACKA_DEMO', 'RACKB_DEMO', 'RACKC_DEMO', 'RACKD_DEMO', 'END')):
         parameter = Parameter('payload', value=payload).to_parameter_msg()
         response = call(node, params, SetParameters.Request(parameters=[parameter]))
         assert response.results[0].successful
@@ -118,6 +145,73 @@ def vision_check(node):
         spin_until(node, lambda: len(results) > index, 10)
         assert results[index] == payload, results
     return {'decoded_payloads': results, 'frames_received': len(images)}
+
+
+def preflight_checks(outdir):
+    """Exercise the actual readiness executable with healthy and broken ROS streams."""
+    results = []
+    for index, scenario in enumerate(('healthy', 'stale', 'empty', 'missing_service', 'duplicate_results', 'missing_stream')):
+        domain = 125 + index
+        environment = {**os.environ, 'ROS_DOMAIN_ID': str(domain), 'ROS_AUTOMATIC_DISCOVERY_RANGE': 'LOCALHOST'}
+        rclpy.init(domain_id=domain)
+        node = Node('preflight_fixture')
+        process = None
+        result = {'case': 'preflight_' + scenario, 'passed': False}
+        logfile, report = outdir/f'preflight-{scenario}.log', outdir/f'preflight-{scenario}.json'
+        with logfile.open('w') as log:
+            try:
+                publisher = node.create_publisher(Image, '/camera/image_raw', qos_profile_sensor_data)
+                node.create_publisher(String, '/qr/data', 10)
+                if scenario == 'duplicate_results':
+                    node.create_publisher(String, '/qr/data', 10)
+                def trigger(request, response):
+                    response.success = True
+                    return response
+                if scenario != 'missing_service':
+                    node.create_service(Trigger, '/qr/start_scan', trigger)
+                    node.create_service(Trigger, '/qr/stop_scan', trigger)
+                def publish():
+                    if scenario == 'missing_stream':
+                        return
+                    msg = Image()
+                    msg.header.frame_id = 'camera_optical_frame'
+                    stamp = node.get_clock().now().to_msg()
+                    if scenario == 'stale':
+                        stamp.sec -= 20
+                    msg.header.stamp = stamp
+                    if scenario != 'empty':
+                        msg.height = msg.width = 8
+                        msg.encoding, msg.step = 'bgr8', 24
+                        msg.data = bytes([255]*192)
+                    publisher.publish(msg)
+                node.create_timer(.1, publish)
+                process = subprocess.Popen(['ros2', 'run', 'robot_bringup', 'preflight', '--mode', 'vision',
+                    '--timeout', '4', '--stable-for', '.4', '--output', str(report)],
+                    env=environment, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+                spin_until(node, lambda: process.poll() is not None, 12)
+                data = json.loads(report.read_text())
+                assert (process.returncode == 0) == (scenario == 'healthy'), data
+                reasons = {'stale': 'stale message timestamp', 'empty': 'empty image',
+                           'missing_service': 'service unavailable', 'duplicate_results': 'exactly one',
+                           'missing_stream': 'no messages received'}
+                if scenario in reasons:
+                    assert reasons[scenario] in json.dumps(data), data
+                result.update(passed=True, report=data)
+            except Exception as exc:
+                result['error'] = str(exc)
+            finally:
+                if process and process.poll() is None:
+                    os.killpg(process.pid, signal.SIGINT)
+                    try:
+                        process.wait(timeout=4)
+                    except subprocess.TimeoutExpired:
+                        os.killpg(process.pid, signal.SIGKILL)
+                        process.wait()
+                node.destroy_node()
+                rclpy.try_shutdown()
+        print(json.dumps(result), flush=True)
+        results.append(result)
+    return results
 
 
 def cancellation_check(outdir):
@@ -254,12 +348,31 @@ def main():
     elif mode == 'vision':
         results.append(run_case('vision', 'vision_replay.launch.py', ['show_results:=false'],
                                 116, outdir, vision_check))
+    elif mode in ('integrated', 'integrated_faults'):
+        scenarios = ['success'] if mode == 'integrated' else ['wrong_qr', 'missing_qr']
+        for index, scenario in enumerate(scenarios):
+            name = 'integrated_' + scenario
+            run_dir = outdir/(name + '-' + uuid.uuid4().hex[:8])
+            results.append(run_case(name, 'integrated_demo.launch.py',
+                ['rviz:=false', 'show_results:=false', f'image_scenario:={scenario}', f'output_dir:={run_dir}'],
+                120+index, outdir, mission_check('COMPLETE' if scenario == 'success' else 'ERROR',
+                    180, scenario == 'success', True, run_dir/'state_frames'),
+                'Mission complete: delivered 4 racks' if scenario == 'success' else 'Timed out waiting for QR marker RACKA_DEMO'))
+            results[-1]['artifact_dir'] = str(run_dir)
+            if scenario == 'success' and results[-1]['passed']:
+                confirmations = [json.loads(p.read_text()) for p in (run_dir/'qr').glob('*.json')]
+                expected = {'START', 'END', *(f'RACK{x}_DEMO' for x in 'ABCD')}
+                if {r['payload'] for r in confirmations} != expected or len(confirmations) != 9:
+                    results[-1].update(passed=False, error='Missing or duplicate confirmation artifacts')
+                results[-1]['saved_confirmations'] = len(confirmations)
+    elif mode == 'preflight':
+        results.extend(preflight_checks(outdir))
     elif mode == 'cancellation':
         results.append(cancellation_check(outdir))
     elif mode == 'envelope':
         results.append(envelope_check())
     else:
-        raise ValueError('Choose rehearsal, navigation or vision')
+        raise ValueError('Choose rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults or preflight')
     (outdir / f'{mode}.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
     if not all(result['passed'] for result in results):
         raise SystemExit(1)

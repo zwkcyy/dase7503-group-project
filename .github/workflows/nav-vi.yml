@@ -1,0 +1,28 @@
+name: NAV and vision offline checks
+on:
+  pull_request:
+    paths: ['ros2_ws/src/nav/**', 'ros2_ws/src/vi/**', 'ros2_ws/src/common/**', 'scripts/**', '.github/workflows/nav-vi.yml']
+  push:
+    branches: [main]
+    paths: ['ros2_ws/src/nav/**', 'ros2_ws/src/vi/**', 'ros2_ws/src/common/**', 'scripts/**', '.github/workflows/nav-vi.yml']
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Install host-only dependencies
+        run: sudo apt-get update && sudo apt-get install -y python3-opencv python3-numpy python3-yaml
+      - name: Logic and image checks
+        run: |
+          bash scripts/check_nav.sh offline
+          bash scripts/check_nav.sh robustness
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nav-vi-offline-results
+          path: output/nav-validation-current/
