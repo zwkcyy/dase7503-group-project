@@ -5,7 +5,7 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 workspace=${NAV_WORKSPACE:-"$HOME/dase7503-nav-work"}
 command=${1:-help}
 if (( $# )); then shift; fi
-packages=(robot_geometry robot_description robot_navigation robot_mission robot_vision robot_bringup robot_simulation)
+packages=(logistics_robot_description robot_geometry robot_description robot_navigation robot_mission robot_vision robot_bringup robot_simulation)
 
 load_ros() {
   if [[ ! -f /opt/ros/jazzy/setup.bash ]]; then
@@ -33,7 +33,8 @@ case "$command" in
     "${elevate[@]}" apt-get install -y ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
       ros-jazzy-robot-localization ros-jazzy-laser-filters ros-jazzy-xacro \
       ros-jazzy-cv-bridge python3-colcon-common-extensions python3-opencv \
-      python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk fonts-noto-cjk
+      python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk fonts-noto-cjk \
+      python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui
     ;;
   build)
     load_ros
@@ -74,6 +75,18 @@ case "$command" in
     load_ros
     exec ros2 launch robot_bringup system.launch.py "$@"
     ;;
+  cad)
+    load_ros; simulation_env
+    exec ros2 launch robot_bringup cad_view.launch.py "$@"
+    ;;
+  hardware)
+    load_ros
+    exec ros2 launch robot_bringup cad_ec.launch.py "$@"
+    ;;
+  ec)
+    load_ros
+    exec ros2 launch robot_bringup ec_bridge.launch.py "$@"
+    ;;
   check)
     load_ros
     exec bash "$repo/scripts/check_nav.sh" "$@"
@@ -82,9 +95,11 @@ case "$command" in
     exec python3 "$repo/scripts/export_nav_evidence.py" "$@"
     ;;
   help|--help|-h)
-    echo 'Usage: bash scripts/nav.sh install|build|demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|check|report [arguments]'
+    echo 'Usage: bash scripts/nav.sh install|build|demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
     echo 'demo: automatic navigation + actual QR image decoding (synthetic sensors and lift).'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'
+    echo 'cad: supplied CAD display. hardware: CAD + EC adapter; unloaded commissioning, no delivery mission.'
+    echo 'ec: isolate an existing EC Python bridge and adapt its ROS topics; no automatic arm or lift completion.'
     echo 'NAV_WORKSPACE selects the build workspace; NAV_DEMO_DOMAIN selects the isolated simulation domain.'
     ;;
   *) echo "Unknown command: $command" >&2; exit 2 ;;

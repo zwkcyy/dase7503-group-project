@@ -1,0 +1,935 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="logistics_robot">
+  <!--CAD geometry/zero pose preserved; masses and unmodeled BOM inertia are estimates. base_link is mesh envelope centre.-->
+  <link name="base_link"/>
+  <link name="pcb_standoff_1">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_1"/>
+    <origin xyz="-0.062249997329 -0.0244999999581 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_2">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_2_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_2_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_2"/>
+    <origin xyz="-0.000249997328967 -0.0243499999581 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_3">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_3_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_3_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_3"/>
+    <origin xyz="-0.120249997329 -0.0244999999581 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_4">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_4_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_4_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_4"/>
+    <origin xyz="0.057750002671 -0.0243499999581 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_5">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_5_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_5_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_5"/>
+    <origin xyz="-0.120249997329 0.0245000000419 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="battery_mount_1">
+    <inertial>
+      <origin xyz="1.26288895195e-17 0.00206345802907 2.04528449366e-18" rpy="0 0 0"/>
+      <mass value="0.00815245998508"/>
+      <inertia ixx="1.56233758072e-06" ixy="-2.57456033964e-23" ixz="1.17194690693e-22" iyy="6.79500765179e-06" iyz="-1.78589205509e-23" izz="5.34677748415e-06"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_01.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="battery_mount_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_01.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="battery_mount_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="battery_mount_1"/>
+    <origin xyz="-0.00624999732897 -0.0784999999581 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_6">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_6_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_6_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_6"/>
+    <origin xyz="0.057750002671 0.0243500000419 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_7">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_7_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_7_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_7"/>
+    <origin xyz="-0.062249997329 0.0245000000419 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="camera_mount_1">
+    <inertial>
+      <origin xyz="0.00327858290883 0.00562192201185 -1.99707977435e-18" rpy="0 0 0"/>
+      <mass value="0.00520021920205"/>
+      <inertia ixx="7.0632081514e-07" ixy="1.61166040741e-07" ixz="8.12706639941e-23" iyy="5.71377886697e-07" iyz="1.44199465189e-22" izz="5.76947621288e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_02.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="camera_mount_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_02.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="camera_mount_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_mount_1"/>
+    <origin xyz="0.123750002671 4.1909586912e-11 -0.000636546291874" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="lidar_link">
+    <inertial>
+      <origin xyz="4.772499345e-19 -1.86114180585e-20 0.0153272939591" rpy="0 0 0"/>
+      <mass value="0.04"/>
+      <inertia ixx="7.65214324073e-06" ixy="8.87510506805e-09" ixz="-8.72363771045e-22" iyy="7.63027310339e-06" iyz="-7.85107331942e-24" izz="7.85758334389e-06"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_03.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lidar_link_material">
+        <color rgba="0.2 0.219607843137 0.239215686275 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_03.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lidar_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lidar_link"/>
+    <origin xyz="0.108750002671 4.1909586912e-11 -0.0646365462919" rpy="3.14159265359 0 3.14159265359"/>
+  </joint>
+  <link name="controller_board_link">
+    <inertial>
+      <origin xyz="1.56079060837e-18 0 0.00908388143508" rpy="0 0 0"/>
+      <mass value="0.065"/>
+      <inertia ixx="1.34054290161e-05" ixy="1.66073502788e-22" ixz="-3.09671446115e-22" iyy="3.05775349682e-05" iyz="-8.20144376151e-23" izz="3.98096635806e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_04.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="controller_board_link_material">
+        <color rgba="0.078431372549 0.419607843137 0.176470588235 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_04.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="controller_board_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="controller_board_link"/>
+    <origin xyz="0.029843871671 4.1909586912e-11 -0.0586365462919" rpy="0 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_8">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_8_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_8_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_8"/>
+    <origin xyz="-0.000249997328967 0.0243500000419 -0.0616365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="pcb_standoff_9">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_9_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_9_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_9"/>
+    <origin xyz="0.126750002671 -0.0114999999581 0.0193634537081" rpy="-4.20352246607e-16 -1.43835079123 -1.57079632679"/>
+  </joint>
+  <link name="pcb_standoff_10">
+    <inertial>
+      <origin xyz="0 0.0015 -6.46838211607e-20" rpy="0 0 0"/>
+      <mass value="8.07523457979e-05"/>
+      <inertia ixx="2.68955781723e-10" ixy="-9.44158836087e-43" ixz="-7.02568220267e-44" iyy="4.16783044749e-10" iyz="-2.57503851449e-42" izz="2.68955781723e-10"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="pcb_standoff_10_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_00.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="pcb_standoff_10_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="pcb_standoff_10"/>
+    <origin xyz="0.126750002671 0.00850000004191 0.0193634537081" rpy="-2.92403092724e-15 -1.5518107252 -1.57079632679"/>
+  </joint>
+  <link name="camera_link">
+    <inertial>
+      <origin xyz="-2.64454543204e-19 -8.9810949615e-05 0.00310061973808" rpy="0 0 0"/>
+      <mass value="0.004"/>
+      <inertia ixx="1.67242683703e-07" ixy="-9.31350602103e-25" ixz="-1.66952260744e-23" iyy="1.76477773982e-07" iyz="-8.26483373518e-10" izz="2.53067900732e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_05.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="camera_link_material">
+        <color rgba="0.078431372549 0.419607843137 0.176470588235 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_05.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="camera_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera_link"/>
+    <origin xyz="0.129750002671 -0.00149999995809 0.0103634537081" rpy="1.57079632679 -2.6645352591e-15 1.57079632679"/>
+  </joint>
+  <link name="upper_plate_1">
+    <inertial>
+      <origin xyz="-0.00610848081325 0.0015 0.0052758061418" rpy="0 0 0"/>
+      <mass value="0.138684423941"/>
+      <inertia ixx="0.000344235230308" ixy="-3.35468529059e-23" ixz="-4.46940520188e-06" iyy="0.00109421768417" iyz="3.11406256461e-22" izz="0.0007501904805"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_06.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="upper_plate_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_06.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="upper_plate_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="upper_plate_1"/>
+    <origin xyz="-0.00624999732897 4.1909586912e-11 -0.00663654629187" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="chassis_post_1">
+    <inertial>
+      <origin xyz="0 0.0275 2.50126641062e-19" rpy="0 0 0"/>
+      <mass value="0.00238917555819"/>
+      <inertia ixx="6.13984271801e-07" ixy="-8.03821041004e-40" ixz="-9.59738635742e-42" iyy="2.3425866348e-08" iyz="9.86829174557e-41" izz="6.13984271801e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="chassis_post_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="chassis_post_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_post_1"/>
+    <origin xyz="0.093750002671 -0.0749999999581 -0.0616365462919" rpy="1.57079632679 0 -2.25308542846"/>
+  </joint>
+  <link name="chassis_post_2">
+    <inertial>
+      <origin xyz="0 0.0275 2.50126641062e-19" rpy="0 0 0"/>
+      <mass value="0.00238917555819"/>
+      <inertia ixx="6.13984271801e-07" ixy="-8.03821041004e-40" ixz="-9.59738635742e-42" iyy="2.3425866348e-08" iyz="9.86829174557e-41" izz="6.13984271801e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="chassis_post_2_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="chassis_post_2_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_post_2"/>
+    <origin xyz="-0.106249997329 -0.0749999999581 -0.0616365462919" rpy="1.57079632679 0 1.40946642362"/>
+  </joint>
+  <link name="drive_motor_1">
+    <inertial>
+      <origin xyz="-0.0146014863746 0.0132490680274 0.00970177051417" rpy="0 0 0"/>
+      <mass value="0.07"/>
+      <inertia ixx="7.06275728471e-06" ixy="4.78040459725e-10" ixz="7.5926064109e-07" iyy="1.99219977585e-05" iyz="-9.59102010214e-10" izz="1.89934447917e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="drive_motor_1_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="drive_motor_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="drive_motor_1"/>
+    <origin xyz="0.0773049316526 -0.0972553879313 -0.0711341809844" rpy="-3.14159265359 2.22044604925e-16 -1.57079632679"/>
+  </joint>
+  <link name="drive_motor_2">
+    <inertial>
+      <origin xyz="-0.0146014863746 0.0132490680274 0.00970177051417" rpy="0 0 0"/>
+      <mass value="0.07"/>
+      <inertia ixx="7.06275728471e-06" ixy="4.78040459725e-10" ixz="7.5926064109e-07" iyy="1.99219977585e-05" iyz="-9.59102010214e-10" izz="1.89934447917e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="drive_motor_2_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="drive_motor_2_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="drive_motor_2"/>
+    <origin xyz="-0.0897718361425 0.0972553880151 -0.0711341809844" rpy="-3.14159265359 0 1.57079632679"/>
+  </joint>
+  <link name="lower_plate_1">
+    <inertial>
+      <origin xyz="-0.00214062112498 0.0015 0.000404556768051" rpy="0 0 0"/>
+      <mass value="0.166222068853"/>
+      <inertia ixx="0.000589898742718" ixy="-2.00997108271e-21" ixz="-1.37285195329e-07" iyy="0.0015095381531" iyz="-3.23581295391e-21" izz="0.000919888743483"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_09.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lower_plate_1_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_09.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lower_plate_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lower_plate_1"/>
+    <origin xyz="-0.00624999732897 4.1909586912e-11 -0.0646365462919" rpy="1.57079632679 0 3.14159265359"/>
+  </joint>
+  <link name="drive_motor_3">
+    <inertial>
+      <origin xyz="-0.0146014863746 0.0132490680274 0.00970177051417" rpy="0 0 0"/>
+      <mass value="0.07"/>
+      <inertia ixx="7.06275728471e-06" ixy="4.78040459725e-10" ixz="7.5926064109e-07" iyy="1.99219977585e-05" iyz="-9.59102010214e-10" izz="1.89934447917e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="drive_motor_3_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="drive_motor_3_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="drive_motor_3"/>
+    <origin xyz="-0.0626950683474 -0.0972553879313 -0.0711341809844" rpy="-3.14159265359 0 -1.57079632679"/>
+  </joint>
+  <link name="drive_motor_4">
+    <inertial>
+      <origin xyz="-0.0146014863746 0.0132490680274 0.00970177051417" rpy="0 0 0"/>
+      <mass value="0.07"/>
+      <inertia ixx="7.06275728471e-06" ixy="4.78040459725e-10" ixz="7.5926064109e-07" iyy="1.99219977585e-05" iyz="-9.59102010214e-10" izz="1.89934447917e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="drive_motor_4_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_08.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="drive_motor_4_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="drive_motor_4"/>
+    <origin xyz="0.0502281638575 0.0972553880151 -0.0711341809844" rpy="3.14159265359 2.22044604925e-16 1.57079632679"/>
+  </joint>
+  <link name="chassis_post_3">
+    <inertial>
+      <origin xyz="0 0.0275 2.50126641062e-19" rpy="0 0 0"/>
+      <mass value="0.00238917555819"/>
+      <inertia ixx="6.13984271801e-07" ixy="-8.03821041004e-40" ixz="-9.59738635742e-42" iyy="2.3425866348e-08" iyz="9.86829174557e-41" izz="6.13984271801e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="chassis_post_3_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="chassis_post_3_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_post_3"/>
+    <origin xyz="0.093750002671 0.0750000000419 -0.0616365462919" rpy="1.57079632679 2.22044604925e-16 -1.45535993323"/>
+  </joint>
+  <link name="chassis_post_4">
+    <inertial>
+      <origin xyz="0 0.0275 2.50126641062e-19" rpy="0 0 0"/>
+      <mass value="0.00238917555819"/>
+      <inertia ixx="6.13984271801e-07" ixy="-8.03821041004e-40" ixz="-9.59738635742e-42" iyy="2.3425866348e-08" iyz="9.86829174557e-41" izz="6.13984271801e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="chassis_post_4_material">
+        <color rgba="1 1 1 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_07.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="chassis_post_4_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="chassis_post_4"/>
+    <origin xyz="-0.106249997329 0.0750000000419 -0.0616365462919" rpy="1.57079632679 0 -1.82014058319"/>
+  </joint>
+  <link name="servo_horn_1">
+    <inertial>
+      <origin xyz="-4.53657598092e-13 1.33660311839e-16 0.00101169858332" rpy="0 0 0"/>
+      <mass value="0.00138376220609"/>
+      <inertia ixx="8.29079220158e-08" ixy="-3.02872919789e-23" ixz="4.16263637751e-19" iyy="8.29079220218e-08" iyz="-9.79588413348e-23" izz="1.62519835488e-07"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_10.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="servo_horn_1_material">
+        <color rgba="0.8 0.8 0.8 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_10.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="servo_horn_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="servo_horn_1"/>
+    <origin xyz="-0.012249997329 0.000350000041909 0.0703634537081" rpy="1.57079632679 0.759282301205 1.57079632679"/>
+  </joint>
+  <link name="lift_tray_1">
+    <inertial>
+      <origin xyz="-4.93512547624e-10 -0.00396748400235 1.85554926484e-09" rpy="0 0 0"/>
+      <mass value="0.11345138035"/>
+      <inertia ixx="0.000161290558879" ixy="1.45710687566e-13" ixz="2.44069260045e-10" iyy="0.000341995233713" iyz="1.94374681497e-13" izz="0.00023094718052"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_11.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lift_tray_1_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_11.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lift_tray_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lift_tray_1"/>
+    <origin xyz="-0.0062499973904 1.49786183457e-10 0.105519852758" rpy="1.57079632679 -1.42108547152e-14 -2.10709158144e-14"/>
+  </joint>
+  <link name="lift_cam_1">
+    <inertial>
+      <origin xyz="-5.76147031264e-07 0.000549219792897 0.00580187204665" rpy="0 0 0"/>
+      <mass value="0.0299187340884"/>
+      <inertia ixx="7.49146328516e-06" ixy="-5.27699879993e-11" ixz="8.64768471111e-11" iyy="7.72456434858e-06" iyz="-7.71941262541e-08" izz="1.45345298566e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_12.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lift_cam_1_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_12.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lift_cam_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lift_cam_1"/>
+    <origin xyz="-0.000249997326659 0.012849604956 0.0704628370416" rpy="1.5707963268 -1.56284557635 -1.5707963268"/>
+  </joint>
+  <link name="lift_base_1">
+    <inertial>
+      <origin xyz="0.00129175607642 0.0172655270653 0.00673947575322" rpy="0 0 0"/>
+      <mass value="0.139143617833"/>
+      <inertia ixx="0.000288084419527" ixy="-4.36139370543e-06" ixz="-3.10245035351e-06" iyy="0.000366700980792" iyz="-1.23039805552e-05" izz="0.000200727398665"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_13.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lift_base_1_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_13.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lift_base_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lift_base_1"/>
+    <origin xyz="-0.00624999732897 4.1909586912e-11 -0.00363654629187" rpy="1.57079632679 0 -1.57079632679"/>
+  </joint>
+  <link name="lift_servo_1">
+    <inertial>
+      <origin xyz="0.0201832412301 0.0195216572524 3.96591975987e-10" rpy="0 0 0"/>
+      <mass value="0.055"/>
+      <inertia ixx="8.29351275008e-06" ixy="1.51077721363e-07" ixz="1.2971713754e-13" iyy="9.27590117079e-06" iyz="-7.76022497306e-13" izz="1.40405537937e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_14.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="lift_servo_1_material">
+        <color rgba="0.792156862745 0.819607843137 0.933333333333 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/part_14.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="lift_servo_1_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="lift_servo_1"/>
+    <origin xyz="-0.0552440384519 0.0106991013405 0.0703634537082" rpy="5.32993313153e-17 4.30766533555e-14 -1.57079632679"/>
+  </joint>
+  <link name="rear_right_wheel_link">
+    <inertial>
+      <origin xyz="2.2107014142e-06 -4.14319189379e-06 -8.61418620062e-09" rpy="0 0 0"/>
+      <mass value="0.06"/>
+      <inertia ixx="1.6471292244e-05" ixy="1.60372348788e-11" ixz="-1.31675324067e-14" iyy="2.42356557698e-05" iyz="1.89081162059e-09" izz="1.64713976702e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="rear_right_wheel_link_material">
+        <color rgba="0.12 0.12 0.14 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_right_wheel_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_right_wheel_link"/>
+    <origin xyz="-0.0759450683474 -0.127533353716 -0.0821365462919" rpy="1.11545649959e-16 -0.117754238418 -3.14159265359"/>
+  </joint>
+  <link name="rear_left_wheel_link">
+    <inertial>
+      <origin xyz="2.2107014142e-06 -4.14319189379e-06 -8.61418620062e-09" rpy="0 0 0"/>
+      <mass value="0.06"/>
+      <inertia ixx="1.6471292244e-05" ixy="1.60372348788e-11" ixz="-1.31675324067e-14" iyy="2.42356557698e-05" iyz="1.89081162059e-09" izz="1.64713976702e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="rear_left_wheel_link_material">
+        <color rgba="0.12 0.12 0.14 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="rear_left_wheel_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_left_wheel_link"/>
+    <origin xyz="-0.0765218361425 0.127533353716 -0.0821365462919" rpy="1.11102388055e-16 -0.0769992916154 -3.14159265359"/>
+  </joint>
+  <link name="front_left_wheel_link">
+    <inertial>
+      <origin xyz="2.2107014142e-06 -4.14319189379e-06 -8.61418620062e-09" rpy="0 0 0"/>
+      <mass value="0.06"/>
+      <inertia ixx="1.6471292244e-05" ixy="1.60372348788e-11" ixz="-1.31675324067e-14" iyy="2.42356557698e-05" iyz="1.89081162059e-09" izz="1.64713976702e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="front_left_wheel_link_material">
+        <color rgba="0.12 0.12 0.14 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_left_wheel_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_left_wheel_link"/>
+    <origin xyz="0.0634781638575 0.127533353716 -0.0821365462919" rpy="1.11102388055e-16 -0.0769992916154 -3.14159265359"/>
+  </joint>
+  <link name="front_right_wheel_link">
+    <inertial>
+      <origin xyz="2.2107014142e-06 -4.14319189379e-06 -8.61418620062e-09" rpy="0 0 0"/>
+      <mass value="0.06"/>
+      <inertia ixx="1.6471292244e-05" ixy="1.60372348788e-11" ixz="-1.31675324067e-14" iyy="2.42356557698e-05" iyz="1.89081162059e-09" izz="1.64713976702e-05"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+      <material name="front_right_wheel_link_material">
+        <color rgba="0.12 0.12 0.14 1"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <mesh filename="package://logistics_robot_description/meshes/mecanum_wheel.stl" scale="1 1 1"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_right_wheel_link_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_right_wheel_link"/>
+    <origin xyz="0.0640549316526 -0.127533353716 -0.0821365462919" rpy="3.14159265359 0.00121179071933 6.24532774656e-17"/>
+  </joint>
+  <link name="bom_extra_mass_link">
+    <inertial>
+      <origin xyz="-0.0335673052979 -0.0464497041044 -0.0419404542202" rpy="0 0 0"/>
+      <mass value="0.338"/>
+      <inertia ixx="0.000808085877687" ixy="0.000428881735161" ixz="-8.5871932701e-05" iyy="0.00146177286333" iyz="-2.66286454633e-05" izz="0.00196166227903"/>
+    </inertial>
+  </link>
+  <joint name="bom_extra_mass_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="bom_extra_mass_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+</robot>

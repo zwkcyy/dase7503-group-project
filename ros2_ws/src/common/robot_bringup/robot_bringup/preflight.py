@@ -154,6 +154,7 @@ def main(args=None):
     parser.add_argument('--geometry-file')
     parser.add_argument('--mission-file')
     parser.add_argument('--allow-unconfirmed', action='store_true', help='Explicit simulation use only')
+    parser.add_argument('--empty-only', action='store_true', help='Unloaded commissioning; never validates a delivery mission')
     parser.add_argument('--output')
     opts = parser.parse_args(args)
     if any(not math.isfinite(v) or v <= 0 for v in (opts.timeout, opts.max_age, opts.stable_for)):
@@ -163,7 +164,9 @@ def main(args=None):
     code = 2
     try:
         if opts.geometry_file:
-            load_profile(opts.geometry_file, opts.allow_unconfirmed)
+            load_profile(opts.geometry_file, opts.allow_unconfirmed, opts.empty_only)
+        if opts.empty_only and (opts.mode != 'navigation' or opts.mission_file):
+            raise ValueError('--empty-only requires --mode navigation and no mission file')
         params = mission_parameters(opts.mission_file) if opts.mission_file else None
         rclpy.init(args=[])
         node = Preflight(opts.mode, opts.max_age, opts.image_topic, params)

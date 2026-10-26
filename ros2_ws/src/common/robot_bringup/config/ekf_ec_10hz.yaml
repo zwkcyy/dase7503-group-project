@@ -1,0 +1,25 @@
+# EC return form reports 10 Hz odometry and IMU. Keep EKF output at 30 Hz.
+# This tolerance permits modest UART/ROS jitter; it is not a measured latency guarantee.
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.35
+    two_d_mode: true
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+    odom0: /odom/wheel
+    odom0_config: [false, false, false, false, false, false,
+                   true, true, false, false, false, true, false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+    imu0: /imu/data_raw
+    imu0_config: [false, false, false, false, false, false,
+                  false, false, false, false, false, true, false, false, false]
+    imu0_differential: false
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: false

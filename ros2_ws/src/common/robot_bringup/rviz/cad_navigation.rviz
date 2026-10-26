@@ -1,0 +1,46 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ''
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Ground
+      Enabled: true
+      Cell Size: 0.1
+      Plane: XY
+      Plane Cell Count: 20
+    - Class: rviz_default_plugins/RobotModel
+      Name: Supplied CAD
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Visual Enabled: true
+      Collision Enabled: false
+    - Class: rviz_default_plugins/TF
+      Name: Frames
+      Enabled: false
+      Show Axes: true
+      Show Names: true
+  Global Options:
+    Background Color: 238; 240; 244
+    Fixed Frame: base_link
+    Frame Rate: 30
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 0.8
+      Pitch: 0.45
+      Yaw: 0.75
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.11
+Window Geometry:
+  Width: 1200
+  Height: 850

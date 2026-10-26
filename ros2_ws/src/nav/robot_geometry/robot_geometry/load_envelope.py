@@ -28,9 +28,13 @@ class LoadEnvelope(Node):
         self.declare_parameter('geometry_file', '')
         self.declare_parameter('allow_unconfirmed_geometry', False)
         self.declare_parameter('initial_loaded', True)
+        self.declare_parameter('empty_only', False)
         self.profile = load_profile(self.get_parameter('geometry_file').value,
-                                    self.get_parameter('allow_unconfirmed_geometry').value)
+                                    self.get_parameter('allow_unconfirmed_geometry').value,
+                                    self.get_parameter('empty_only').value)
         self.loaded = self.get_parameter('initial_loaded').value
+        if self.profile['empty_only'] and self.loaded:
+            raise ValueError('Empty-only commissioning cannot start loaded')
         self.busy = False
         self.failed = False
         self.tf = Buffer()
@@ -50,6 +54,9 @@ class LoadEnvelope(Node):
         self.get_logger().info(f'Load envelope ready; initial_loaded={self.loaded}')
 
     async def set_loaded(self, request, response):
+        if request.data and self.profile['empty_only']:
+            response.message = 'Loaded geometry is unavailable in empty-only commissioning'
+            return response
         if self.busy or self.failed:
             response.message = 'Envelope update busy or previously failed; restart after inspection'
             return response

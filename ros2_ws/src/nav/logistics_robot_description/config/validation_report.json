@@ -1,0 +1,61 @@
+{
+  "logistics_robot.urdf": {
+    "parser": "urdf_parser_py 0.0.4",
+    "root": "base_link",
+    "links": 36,
+    "joints": 35,
+    "continuous_joints": [
+      "rear_right_wheel_link_joint",
+      "rear_left_wheel_link_joint",
+      "front_left_wheel_link_joint",
+      "front_right_wheel_link_joint"
+    ],
+    "mesh_files": 16,
+    "mesh_bbox_m": [
+      [
+        -0.14125000269339527,
+        -0.14328335396932537,
+        -0.11151985281021382
+      ],
+      [
+        0.14125000269338278,
+        0.14328335396932515,
+        0.11151985281044892
+      ]
+    ],
+    "max_mesh_vertex_pose_error_m": 6.260651719269816e-13,
+    "summed_mass_kg": 1.6345208921493593,
+    "inertias_positive_definite": true,
+    "inertia_triangle_inequality": true,
+    "base_link_at_geometry_center": true
+  },
+  "model_snapshot_fixed.urdf": {
+    "parser": "urdf_parser_py 0.0.4",
+    "root": "base_link",
+    "links": 36,
+    "joints": 35,
+    "continuous_joints": [],
+    "mesh_files": 16,
+    "mesh_bbox_m": [
+      [
+        -0.14125000269339527,
+        -0.14328335396932537,
+        -0.11151985281021382
+      ],
+      [
+        0.14125000269338278,
+        0.14328335396932515,
+        0.11151985281044892
+      ]
+    ],
+    "max_mesh_vertex_pose_error_m": 6.260651719269816e-13,
+    "summed_mass_kg": 1.6345208921493593,
+    "inertias_positive_definite": true,
+    "inertia_triangle_inequality": true,
+    "base_link_at_geometry_center": true
+  },
+  "source_integrity": {
+    "files_checked": 19,
+    "unchanged": true
+  }
+}

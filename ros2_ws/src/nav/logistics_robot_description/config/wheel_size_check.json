@@ -1,0 +1,11 @@
+{
+  "rotation_axis": "source local Y through X=0,Z=0",
+  "current_aabb_mm": [
+    58.29417705535889,
+    31.500000273808837,
+    58.29417705535889
+  ],
+  "maximum_radial_diameter_mm": 60.20364903737022,
+  "bom_nominal_diameter_mm": 65,
+  "geometry_rescaled": false
+}

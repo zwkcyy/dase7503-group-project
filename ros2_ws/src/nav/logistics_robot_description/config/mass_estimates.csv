@@ -1,0 +1,40 @@
+﻿link,component,mass_kg,min_kg,max_kg,basis,cad_volume_m3
+pcb_standoff_1,底盘-1/电路板垫高柱-2,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_2,底盘-1/电路板垫高柱-4,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_3,底盘-1/电路板垫高柱-6,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_4,底盘-1/电路板垫高柱-1,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_5,底盘-1/电路板垫高柱-5,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+battery_mount_1,底盘-1/电池安装块-1,0.008152459985081746,0.005706721989557222,0.01059819798060627,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.305071671220202e-06
+pcb_standoff_6,底盘-1/电路板垫高柱-3,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_7,底盘-1/电路板垫高柱-7,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+camera_mount_1,底盘-1/相机安装块-1,0.005200219202049919,0.003640153441434943,0.006760284962664895,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,4.659694625492759e-06
+lidar_link,底盘-1/ms200_proxy-1,0.04,0.036000000000000004,0.044000000000000004,MS200 lidar: manufacturer approximate mass 40 g,3.888919338169892e-05
+controller_board_link,底盘-1/microros_board_proxy-1,0.065,0.04875,0.08125,MicroROS controller PCB+connectors/components: engineering estimate 65 g,6.14602989952e-05
+pcb_standoff_8,底盘-1/电路板垫高柱-8,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_9,底盘-1/电路板垫高柱-9,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+pcb_standoff_10,底盘-1/电路板垫高柱-10,8.075234579788856e-05,5.652664205852199e-05,0.00010497804953725514,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,7.235873279380695e-08
+camera_link,底盘-1/camera_module3_standard_proxy-1,0.004,0.003,0.005,Camera Module 3: engineering estimate 4 g; cable accounted separately,1.5741028239604647e-06
+upper_plate_1,底盘-1/上层板-1,0.13868442394050404,0.13175020274347882,0.14561864513752926,"PMMA acrylic, 1190 kg/m3; CAD solid volume",0.00011654153272311265
+chassis_post_1,底盘-1/支撑柱1-4,0.0023891755581882616,0.001672422890731783,0.0031059282256447403,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,2.1408383137887646e-06
+chassis_post_2,底盘-1/支撑柱1-1,0.0023891755581882616,0.001672422890731783,0.0031059282256447403,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,2.1408383137887646e-06
+drive_motor_1,底盘-1/电机-2,0.07,0.059500000000000004,0.0805,310 encoder motor: manufacturer approximate single mass 70 g,2.985862405227987e-05
+drive_motor_2,底盘-1/电机-3,0.07,0.059500000000000004,0.0805,310 encoder motor: manufacturer approximate single mass 70 g,2.985862405227987e-05
+lower_plate_1,底盘-1/下层板-1,0.1662220688534714,0.15791096541079783,0.17453317229614498,"PMMA acrylic, 1190 kg/m3; CAD solid volume",0.00013968241080123647
+drive_motor_3,底盘-1/电机-4,0.07,0.059500000000000004,0.0805,310 encoder motor: manufacturer approximate single mass 70 g,2.985862405227987e-05
+drive_motor_4,底盘-1/电机-1,0.07,0.059500000000000004,0.0805,310 encoder motor: manufacturer approximate single mass 70 g,2.985862405227987e-05
+chassis_post_3,底盘-1/支撑柱1-2,0.0023891755581882616,0.001672422890731783,0.0031059282256447403,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,2.1408383137887646e-06
+chassis_post_4,底盘-1/支撑柱1-3,0.0023891755581882616,0.001672422890731783,0.0031059282256447403,Assumed PLA 1240 kg/m3 x effective solid fraction 0.90; CAD volume,2.1408383137887646e-06
+servo_horn_1,抬升机构装配体-1/mg996_arm_4pad-3,0.0013837622060927357,0.0010378216545695517,0.0017297027576159197,"Servo horn assumed nylon 1140 kg/m3, fully solid",1.2138264965725751e-06
+lift_tray_1,抬升机构装配体-1/托盘-2,0.11345138035046189,0.07941596624532332,0.14748679445560045,Assumed PLA 1240 kg/m3 x effective solid fraction 0.60; CAD volume,0.00015248841444954556
+lift_cam_1,抬升机构装配体-1/凸轮v2-4,0.029918734088391737,0.020943113861874214,0.03889435431490926,Assumed PLA 1240 kg/m3 x effective solid fraction 0.70; CAD volume,3.4468587659437486e-05
+lift_base_1,抬升机构装配体-1/底板v2-1,0.1391436178334916,0.09740053248344412,0.18088670318353908,Assumed PLA 1240 kg/m3 x effective solid fraction 0.60; CAD volume,0.00018702099171168227
+lift_servo_1,抬升机构装配体-1/MG996R_servo-3,0.055,0.0495,0.060500000000000005,MG996R servo: manufacturer nominal mass 55 g,3.0582091583101786e-05
+rear_right_wheel_link,底盘-1/mecanum wheel.step-3,0.06,0.04,0.085,"Estimated 60 g per plastic/rubber mecanum wheel incl adapter; physical BOM 65 mm, geometry retained: current CAD XZ envelope 58.3 mm; maximum radial diameter about 60.2 mm",4.753226313659253e-05
+rear_left_wheel_link,底盘-1/mecanum wheel.step-4,0.06,0.04,0.085,"Estimated 60 g per plastic/rubber mecanum wheel incl adapter; physical BOM 65 mm, geometry retained: current CAD XZ envelope 58.3 mm; maximum radial diameter about 60.2 mm",4.753226313659253e-05
+front_left_wheel_link,底盘-1/mecanum wheel.step-1,0.06,0.04,0.085,"Estimated 60 g per plastic/rubber mecanum wheel incl adapter; physical BOM 65 mm, geometry retained: current CAD XZ envelope 58.3 mm; maximum radial diameter about 60.2 mm",4.753226313659253e-05
+front_right_wheel_link,底盘-1/mecanum wheel.step-2,0.06,0.04,0.085,"Estimated 60 g per plastic/rubber mecanum wheel incl adapter; physical BOM 65 mm, geometry retained: current CAD XZ envelope 58.3 mm; maximum radial diameter about 60.2 mm",4.753226313659253e-05
+bom_extra_mass_link,battery_7v4_9900mah,0.2,0.15,0.26,Engineering estimate for pictured lithium pack; no measured weight or cell count provided. COM estimated above modeled battery holder.,
+bom_extra_mass_link,raspberry_pi5_cooler_sd,0.085,0.065,0.11,Pi5+fan/heatsink+microSD estimate; COM estimated from unused right-side PCB standoffs.,
+bom_extra_mass_link,lidar_usb_adapter,0.01,0.006,0.015,"MS200 adapter PCB mass estimate; no separate CAD placement, lumped at modeled lidar origin.",
+bom_extra_mass_link,wifi_dongle,0.008,0.004,0.015,"Small USB Wi-Fi adapter estimate; no model, lumped with Pi5.",
+bom_extra_mass_link,installed_cables_fasteners,0.035,0.02,0.06,"Installed USB/FFC/motor wires, mounting adapters/fasteners estimate; geometric center fallback. Excludes charger, mains supply, external display cable and card reader.",

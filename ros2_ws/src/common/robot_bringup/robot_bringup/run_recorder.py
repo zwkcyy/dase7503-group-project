@@ -23,6 +23,7 @@ class RunRecorder(Node):
         self.status, self.codes, self.started, self.finished = None, [], None, None
         self.create_subscription(String, '/mission/status', self.on_state, 10)
         self.create_subscription(String, '/qr/data', self.on_qr, 10)
+        self.create_subscription(String, '/ec_adapter/status', self.on_ec, 10)
         self.create_timer(2., self.summary)
         self.record('recorder_started', source=self.source)
 
@@ -44,12 +45,23 @@ class RunRecorder(Node):
         except ValueError:
             self.record('invalid_status', raw=msg.data)
             return
+        if not isinstance(status, dict):
+            self.record('invalid_status', raw=msg.data)
+            return
         if status != self.status:
             self.status = status
             if status.get('state') in ('COMPLETE', 'ERROR') and self.finished is None:
                 self.finished = time.monotonic()
             self.record('mission_state', status=status)
             self.summary()
+
+    def on_ec(self, msg):
+        try:
+            status = json.loads(msg.data)
+        except ValueError:
+            self.record('invalid_ec_status', raw=msg.data)
+            return
+        self.record('ec_adapter_status', status=status)
 
     def summary(self):
         data = {'source': self.source, 'status': self.status, 'confirmed_codes': self.codes,

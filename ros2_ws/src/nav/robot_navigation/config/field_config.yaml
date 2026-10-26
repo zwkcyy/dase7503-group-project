@@ -7,7 +7,7 @@
 field:
   length_mm: 3020          # inner size along x
   width_mm: 2000           # inner size along y
-  wall_thickness_mm: 20    # TODO: measure the real wall panels
+  wall_thickness_mm: 20    # NAV choice: one occupied cell outside the inner boundary
 
 map:
   name: field_map          # output: maps/field_map.pgm + maps/field_map.yaml
@@ -16,11 +16,21 @@ map:
 
 # Optional, only drawn on the preview image (not written into the map).
 # Rectangles are [x_min, y_min, x_max, y_max] in mm, field frame.
-# Leave as null until the values are confirmed on the real field.
+# Course drawing: docs/course/2_QR_Code_and_Gamefield_左右对照.pdf, page 2.
+# Adopt these published dimensions as the development baseline.
 zones:
-  start: null
-  destination: null
+  start: [2420, 600, 3020, 1400]
+  destination: [0, 300, 800, 1700]
 
+# NAV placement convention: centre of the start zone, facing the destination.
+# Only use when the actual robot is placed at this pose; this is not localisation.
+nav_start:
+  x_mm: 2720.0
+  y_mm: 1000.0
+  yaw_rad: 3.141592653589793
+
+# The dimensioned drawing does not identify A/B/C/D. Keep these unset until
+# observed on site; the labelled illustration is not a dimensioned survey.
 racks:
   A: null
   B: null
