@@ -106,6 +106,9 @@ class EcAdapter(Node):
         if stamp <= 0 or not -.1 <= now-stamp <= self.settings['telemetry_max_age_s']:
             self.reject(key, 'Missing, stale or future timestamp; EC bridge must use the Pi ROS clock')
             return False
+        # Include message age at arrival, rather than granting another full
+        # timeout to a packet that was already almost stale in transport.
+        self.last_data[key] = time.monotonic() - max(0., now-stamp)
         return True
 
     def odometry(self, message):
@@ -123,8 +126,11 @@ class EcAdapter(Node):
         if not all(math.isfinite(x) for x in values):
             self.reject('odom', 'Nonfinite odometry values')
             return
+        q = pose.orientation
+        if abs(q.x*q.x + q.y*q.y + q.z*q.z + q.w*q.w - 1.) > .01:
+            self.reject('odom', 'Odometry orientation is not a unit quaternion')
+            return
         self.odom_pub.publish(message)
-        self.last_data['odom'] = time.monotonic()
         self.issues.pop('odom', None)
 
     def imu(self, message):
@@ -152,7 +158,6 @@ class EcAdapter(Node):
         output.orientation.w = 1.
         output.orientation_covariance = [-1., 0., 0., 0., 0., 0., 0., 0., 0.]
         self.imu_pub.publish(output)
-        self.last_data['imu'] = time.monotonic()
         self.issues.pop('imu', None)
 
     def telemetry_ready(self):
