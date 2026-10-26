@@ -19,6 +19,8 @@ def generate_launch_description():
     description = Path(get_package_share_directory('robot_description'))
     defaults = {'geometry_file': str(description / 'config/mechanical.yaml'),
                 'allow_unconfirmed_geometry': 'false', 'initial_loaded': 'true',
+                'empty_only': 'false',
+                'ekf_params_file': str(nav / 'config/ekf.yaml'),
                 'params_file': str(nav / 'config/nav2_params.yaml'),
                 'use_sim_time': 'false', 'autostart': 'true', 'log_level': 'info',
                 'initial_x': '0.0', 'initial_y': '0.0', 'initial_yaw': '0.0', 'rviz': 'false'}
@@ -26,7 +28,9 @@ def generate_launch_description():
     def prepare(context):
         args = {key: LaunchConfiguration(key).perform(context) for key in defaults}
         boolean = lambda key: args[key].lower() in ('true', '1')
-        profile = load_profile(args['geometry_file'], boolean('allow_unconfirmed_geometry'))
+        if boolean('empty_only') and boolean('initial_loaded'):
+            raise ValueError('Empty-only commissioning cannot start loaded')
+        profile = load_profile(args['geometry_file'], boolean('allow_unconfirmed_geometry'), boolean('empty_only'))
         with open(args['params_file'], encoding='utf-8') as stream:
             params = nav_parameters(yaml.safe_load(stream), profile, boolean('initial_loaded'))
         directory = tempfile.TemporaryDirectory(prefix='dase7503-nav-')
@@ -43,12 +47,14 @@ def generate_launch_description():
         actions.append(IncludeLaunchDescription(str(nav / 'launch/localization.launch.py'),
             launch_arguments={**common, 'geometry_file': args['geometry_file'],
                               'external_scan_filter': 'true',
+                              'ekf_params_file': args['ekf_params_file'],
                               **{key: args[key] for key in ('initial_x', 'initial_y', 'initial_yaw')}}.items()))
         actions.append(IncludeLaunchDescription(str(nav / 'launch/navigation.launch.py'),
                                                launch_arguments=common.items()))
         actions.append(Node(package='robot_geometry', executable='load_envelope', output='screen',
             parameters=[{'geometry_file': args['geometry_file'],
                          'allow_unconfirmed_geometry': boolean('allow_unconfirmed_geometry'),
+                         'empty_only': boolean('empty_only'),
                          'initial_loaded': boolean('initial_loaded'), 'use_sim_time': boolean('use_sim_time')}]))
         if boolean('rviz'):
             actions.append(Node(package='rviz2', executable='rviz2', output='screen',

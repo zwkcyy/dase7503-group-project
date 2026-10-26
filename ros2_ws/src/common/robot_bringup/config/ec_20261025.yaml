@@ -1,0 +1,23 @@
+# Source: EC communication return form, firmware 40d3041 / bridge v0.1.0.
+# Source code and physical behaviour have not been independently verified.
+ec_adapter:
+  ros__parameters:
+    enable_motion: false
+    enable_lift: false
+    telemetry_max_age_s: 0.5
+    command_timeout_s: 0.25
+    max_linear_speed_m_s: 0.5
+    max_angular_speed_rad_s: 2.0
+    expected_imu_frame: base_link
+    # Trust the bridge's declared base_link axes provisionally. Do not apply
+    # the CAD board yaw twice. Change this only if raw-axis evidence requires it.
+    imu_to_base_rpy_rad: [0.0, 0.0, 0.0]
+    # Provisional positive covariance for fields reported as all zero.
+    imu_angular_variance: 0.0025
+    imu_acceleration_variance: 0.25
+    # Full UART command texts stated in the EC form. The unavailable Python
+    # bridge's String callback convention must be checked before actuation.
+    lift_up_text: 'lift up'
+    lift_down_text: 'lift down'
+    lift_stop_text: 'lift stop'
+    lift_confirmation_timeout_s: 60.0

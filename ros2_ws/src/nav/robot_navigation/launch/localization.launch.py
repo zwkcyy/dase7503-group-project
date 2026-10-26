@@ -38,13 +38,15 @@ def generate_launch_description():
             'amcl.ros__parameters.initial_pose.y': initial_y,
             'amcl.ros__parameters.initial_pose.yaw': initial_yaw,
         }, convert_types=True), allow_substs=True)
-    ekf_params = PathJoinSubstitution([pkg_share, 'config', 'ekf.yaml'])
+    ekf_params = LaunchConfiguration('ekf_params_file')
     laser_filter_params = PathJoinSubstitution([pkg_share, 'config', 'laser_filter.yaml'])
 
     lifecycle_nodes = ['map_server', 'amcl']
     ros_args = ['--ros-args', '--log-level', log_level]
 
     declare_args = [
+        DeclareLaunchArgument('ekf_params_file', default_value=PathJoinSubstitution([
+            pkg_share, 'config', 'ekf.yaml'])),
         DeclareLaunchArgument('external_scan_filter', default_value='false'),
         DeclareLaunchArgument('geometry_file', default_value=PathJoinSubstitution([
             FindPackageShare('robot_description'), 'config', 'mechanical.yaml'])),

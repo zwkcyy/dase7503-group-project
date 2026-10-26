@@ -23,13 +23,14 @@ def bounds(value, name):
     return [a, b, c, d]
 
 
-def load_profile(path, allow_unconfirmed=False):
+def load_profile(path, allow_unconfirmed=False, empty_only=False):
     with open(path, encoding='utf-8') as stream:
         data = yaml.safe_load(stream)
     if not isinstance(data, dict) or not isinstance(data.get('confirmed'), bool):
         raise ValueError('Geometry requires a boolean confirmed field')
-    if not data['confirmed'] and not allow_unconfirmed:
-        raise ValueError('CAD geometry is unconfirmed. Use the simulation launch for examples.')
+    accepted_empty = empty_only and data.get('development_baseline_accepted') is True
+    if not data['confirmed'] and not allow_unconfirmed and not accepted_empty:
+        raise ValueError('Geometry requires physical verification for a full mission, or an accepted development baseline with empty_only.')
     for key in ('body_length', 'body_width', 'body_height', 'body_clearance',
                 'wheel_radius', 'wheel_width', 'wheel_base', 'wheel_track',
                 'footprint_padding', 'self_filter_margin'):
@@ -41,6 +42,11 @@ def load_profile(path, allow_unconfirmed=False):
         numbers(data.get(sensor + '_xyz_mm'), 3, sensor + '_xyz_mm')
         numbers(data.get(sensor + '_rpy_rad'), 3, sensor + '_rpy_rad')
     empty = bounds(data.get('empty_bounds_mm'), 'empty_bounds_mm')
+    # This effective envelope only supports unloaded commissioning. It is never
+    # written to the source file, and the service refuses a loaded transition.
+    if empty_only and data.get('loaded_bounds_mm') is None:
+        data['loaded_bounds_mm'] = list(empty)
+    data['empty_only'] = bool(empty_only)
     loaded = bounds(data.get('loaded_bounds_mm'), 'loaded_bounds_mm')
     if not (loaded[0] <= empty[0] and loaded[1] <= empty[1]
             and loaded[2] >= empty[2] and loaded[3] >= empty[3]):
