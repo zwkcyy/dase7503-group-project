@@ -2,7 +2,8 @@
 
 These launch files use an isolated ROS domain (75) and localhost discovery.
 Use the same environment in every terminal. Run one workflow at a time.
-All demo geometry, rack poses and QR suffixes are examples, not measured values.
+Robot geometry, rack poses and QR suffixes are examples, not measured values.
+The course scenario adopts the published field dimensions and start/end zones.
 
 ```bash
 source /opt/ros/jazzy/setup.bash
@@ -11,21 +12,43 @@ export ROS_DOMAIN_ID=75
 export ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
 ```
 
-## 1. Task rehearsal
+## 1. Course presentation and task rehearsal
 
 For the complete automatic workflow with actual image decoding, use:
 
 ```bash
-ros2 launch robot_simulation integrated_demo.launch.py
+ros2 launch robot_simulation course_demo.launch.py
+# Equivalent repository entry:
+bash scripts/nav.sh demo
 ```
 
-It opens RViz and the QR window, waits for a read-only readiness check, then starts
-the mission. Set `rviz:=false show_results:=false` for headless runs. It saves run
+It opens a clean portrait field viewer, waits for a read-only readiness check, then starts
+the mission. Set `show_field:=false` for headless runs; add `rviz:=true` for debugging. It saves run
 events and the exact confirming frames in a fresh `~/.ros/nav_vi_runs/` directory.
 The camera is a task-driven image fixture, not a geometric optical sensor model;
 lift and motion physics remain simulated. `image_scenario:=wrong_qr` or
 `image_scenario:=missing_qr` checks task failure using actual image decoding.
 Use a fresh path for each explicit `output_dir` to keep records separate.
+
+`config/course_layout.yaml` is the single source for the viewer, simulated world,
+mission coordinates and generated wall map. Its dimensions/zones come from page 2
+of the original course PDF. Rack centres are estimates from the labelled page 3
+schematic; the dimensioned drawing does not identify A/B/C/D unambiguously.
+The view places destination above start; ROS coordinates remain x along 3020 mm,
+y along 2000 mm. Vehicle outlines use the same geometry snapshot as navigation.
+Rack markers are task locations, not contact bodies. The four deliveries share
+one destination target, so success does not prove separate physical placements.
+
+The original central-obstacle scene remains an explicitly named regression fixture:
+
+```bash
+bash scripts/nav.sh regression-demo
+# Direct equivalent; headless arguments belong to this launch:
+ros2 launch robot_simulation integrated_demo.launch.py rviz:=false show_results:=false
+```
+
+It uses RViz plus the existing QR window. Do not present this obstacle fixture
+as the course layout. The coloured costmap bands are navigation debug layers.
 
 The lower-level rehearsal below intentionally retains all mock peers.
 
@@ -89,7 +112,8 @@ then waits for acknowledgement from both costmaps and the self-filter.
 An unsuccessful update stops mission progression; do not resume after a partial
 update without checking the configuration and restarting.
 
-EC transport is deliberately not guessed. The submodule README describes ASCII
-serial firmware without native micro-ROS. Agree on transport, exact commands,
-feedback units/frames and completion semantics before implementing an adapter.
+The EC return-form adapter is implemented in `robot_bringup/ec_adapter.py`.
+It isolates the existing bridge topics, checks SI telemetry and permits lift
+completion only after an explicit operator confirmation. The private bridge
+source and hardware have not been exercised here; see the CAD/EC integration note.
 No internal EC PID, encoder or gearing parameters are requested.

@@ -16,6 +16,7 @@ from launch_ros.descriptions import ParameterFile
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 from nav2_common.launch import RewrittenYaml
+from robot_geometry.launch_parameters import ExpandedParameterFile
 
 
 def generate_launch_description():
@@ -31,13 +32,15 @@ def generate_launch_description():
 
     # Rewrite the node-specific YAML: a wildcard parameter dictionary does not
     # reliably override the nested AMCL values in a node-specific YAML file.
+    # Expand the original template first. Expanding RewrittenYaml's output
+    # strips backslashes from its Unicode escapes and corrupts Chinese paths.
     nav2_params = ParameterFile(RewrittenYaml(
-        source_file=params_file,
+        source_file=ExpandedParameterFile(params_file),
         param_rewrites={
             'amcl.ros__parameters.initial_pose.x': initial_x,
             'amcl.ros__parameters.initial_pose.y': initial_y,
             'amcl.ros__parameters.initial_pose.yaw': initial_yaw,
-        }, convert_types=True), allow_substs=True)
+        }, convert_types=True), allow_substs=False)
     ekf_params = LaunchConfiguration('ekf_params_file')
     laser_filter_params = PathJoinSubstitution([pkg_share, 'config', 'laser_filter.yaml'])
 

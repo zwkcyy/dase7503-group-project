@@ -27,6 +27,9 @@ into the Pi's ROS Python environment; its cv_bridge uses system libraries.
   expiry; idempotent services; file and debug failures; optional model fallback.
 - Maps: default geometry and identical committed PGM; zero margin; PGM row order;
   metre-based origin; invalid dimensions; CLI output and filename validation.
+- Course scene: published dimensions/zones, schematic label arrangement, common
+  world/mission/map source, loaded wall clearance, invalid data rejection, and
+  separation of accepted empty-only CAD data from full physical acceptance.
 
 ## Limits and checks on the robot
 
@@ -81,7 +84,10 @@ does this automatically). New modes:
 ```bash
 bash scripts/nav.sh check integrated
 bash scripts/nav.sh check integrated_faults
+bash scripts/nav.sh check course
 bash scripts/nav.sh check preflight
+bash scripts/nav.sh check ec_adapter
+bash scripts/nav.sh check launch_parameters
 bash scripts/nav.sh check robustness
 ```
 
@@ -92,6 +98,14 @@ confirming images and six distinct QR categories must be saved for a successful 
 Wrong and blank images exercise the production scanner and task QR deadline.
 Readiness checks use domains 125-130 for healthy, stale, empty, missing-service,
 duplicate-result-publisher and missing-stream cases. Run suites sequentially.
+The course mode repeats the successful integration in the course scene on domain
+123 and saves its generated configuration/map snapshots. The EC callback suite
+uses real ROS message classes on domain 178, replaces outputs with capture objects,
+and never sends hardware commands. Its 20 checks cover data age including transport
+delay, frames, quaternion validity, IMU rotation, velocity limits/timeout, and lift
+target-versus-arrival semantics. It does not validate the external serial bridge.
+Three launch-parameter checks exercise the actual template expansion and Nav2 YAML
+rewriting order, including Chinese paths with spaces and AMCL initial-pose overrides.
 
 The robustness command measures 71 deterministic image cases, three attempts each,
 using the production OpenCV fallback with ROS boundaries replaced. Required clean

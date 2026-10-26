@@ -5,7 +5,8 @@
 本文列出的离线演示不依赖 EC 私有子仓库。
 
 2026-10-26：已接收 CAD 模型与 EC 通信岗回填表，新增第八个包和 `cad`、`hardware`、`ec` 入口。
-当前接入与实物边界见 [CAD / EC 接入记录](NAV_VI_CAD_EC_接入记录.md)。下文七包构建数为上一阶段记录。
+当前接入与实物边界见 [CAD / EC 接入记录](NAV_VI_CAD_EC_接入记录.md)。
+课程演示已改为清晰的场地窗口；原中央障碍场景保留为独立回归入口。
 
 ## 1. 本机立即运行
 
@@ -17,7 +18,9 @@ bash scripts/nav.sh demo
 ```
 
 脚本自动加载 ROS 和 `/home/adminis/dase7503-nav-work/install`，使用本机隔离域 75。
-会打开 RViz 和扫码窗口；启动自检通过后才启动任务。无需手动点目标或启动扫描。
+会打开课程场地窗口：绿色终点、蓝色起点、四个货架任务点、实际仿真位姿、Nav2 路线和扫码结果。
+启动自检通过后才启动任务。无需手动点目标或启动扫描。调试时可加 `rviz:=true`。
+长宽和起终区域采用课程尺寸；A/B/C/D 位置按第 3 页示意图估计，尚非现场测量值。
 
 完整顺序：
 
@@ -35,7 +38,9 @@ bash scripts/nav.sh demo
 无图形桌面时：
 
 ```bash
-bash scripts/nav.sh demo rviz:=false show_results:=false
+bash scripts/nav.sh demo show_field:=false
+# 原中央障碍测试场景及 RViz／扫码窗口：
+bash scripts/nav.sh regression-demo
 ```
 
 ## 2. 更新、安装与编译
@@ -55,7 +60,7 @@ bash scripts/nav.sh demo
 ```
 
 `install` 安装 NAV／VI 公共依赖，会要求 sudo。它不安装未知型号的雷达、相机或 EC 串口适配器。
-`build` 将仓库 nav、vi、common 源码链接到 `~/dase7503-nav-work/src`，构建七个包。
+`build` 将仓库 nav、vi、common 源码链接到 `~/dase7503-nav-work/src`，构建八个包。
 输出留在 Linux 文件系统。若已有源码链接指向另一份仓库，脚本拒绝覆盖。
 可用 `NAV_WORKSPACE=/自选路径 bash scripts/nav.sh build` 选择另一个工作空间；后续命令使用相同变量。
 
@@ -101,24 +106,30 @@ bash scripts/nav.sh demo image_scenario:=missing_qr
 ```bash
 bash scripts/nav.sh check offline
 bash scripts/nav.sh check robustness
+bash scripts/nav.sh check launch_parameters
 bash scripts/nav.sh check integrated
 bash scripts/nav.sh check integrated_faults
+bash scripts/nav.sh check course
 bash scripts/nav.sh check preflight
+bash scripts/nav.sh check ec_adapter
 # 包括既有的任务异常、导航、六类二维码、取消、轮廓服务检查：
 bash scripts/nav.sh check all
 ```
 
-检查使用 localhost 域 100–130；不要同时启动两个自动检查套件。
+检查使用 localhost 域 100–130，EC 回调检查使用 178；不要同时启动两个自动检查套件。
 报告默认保存到 `output/nav-validation-current/`。图像鲁棒性报告在其 `robustness/index.html`。
 GitHub Actions 执行离线逻辑和复杂图片检查；它不运行实机，也不证明 ROS 集成或树莓派性能。
 
 ## 5. 每次运行的证据
 
-完整演示默认在 `~/.ros/nav_vi_runs/integrated-日期-随机后缀/` 新建记录目录。
+课程演示默认在 `~/.ros/nav_vi_runs/course-日期-随机后缀/` 新建记录目录。
+原中央障碍回归使用 `integrated-日期-随机后缀/`。
 可以指定 `output_dir:=/某个新目录`，但不要复用已经运行过的目录。
 
 | 文件 | 内容 |
 |---|---|
+| scene.yaml、world.yaml、mission.yaml、geometry.yaml | 课程演示本轮使用的场景、仿真世界、任务和车体轮廓快照 |
+| field.yaml、course_map.pgm、course_map.yaml | 从同一场景生成的导航静态墙体地图；可移动货架不写入静态地图 |
 | preflight.json | 启动检查是否通过、缺失项 |
 | events.jsonl | 状态切换和每次确认的完整二维码内容、接收时间 |
 | summary.json | 最后状态、确认序列、观察者收到 START 后的耗时 |
@@ -175,6 +186,7 @@ bash scripts/nav.sh robot geometry_file:=/实际路径/mechanical.yaml \
 本次补齐：真实视觉与导航自动联跑、启动检查、统一入口、安装构建脚本、复杂图片基准、
 自动回归、每次确认图像与记录、提交材料的留档流程。
 
-仍待实物／外部数据：CAD 实测尺寸和传感器位姿、EC 权限／协议／适配归属、真实雷达与相机、
-正式地图坐标和二维码、货架对位与进入／退出动作确认、实车调参、四货架全流程及异常停止验收。
+已采用交付 CAD 和 EC 回填表完成开发基准与适配。仍待现场完成：传感器原点与轴向核对、
+载货包络和模型高度核对、运行 EC 现有私有桥接、真实雷达与相机、正式货架坐标与二维码、
+货架对位和进入／退出动作、真实升降完成依据、实车调参、四货架全流程及异常停止验收。
 原接口表明确排除的 EC 内部 PID、编码器和传动细节继续不由 NAV／VI 承担。
