@@ -43,6 +43,7 @@ class Preflight(Node):
                 name = self.mission.get(key, '/qr/' + ('start_scan' if key == 'qr_start_service' else 'stop_scan'))
                 self.service_clients[name] = self.create_client(Trigger, name)
         self.nav = None
+        self.dock = ActionClient(self, NavigateToPose, '/dock_to_pose') if self.mission.get('use_docking') else None
         if mode in ('navigation', 'full'):
             topics.update({'/scan_filtered': LaserScan, '/odom/wheel': Odometry,
                            '/odometry/filtered': Odometry, '/imu/data_raw': Imu})
@@ -96,6 +97,8 @@ class Preflight(Node):
         now, ros_now = time.monotonic(), self.get_clock().now().nanoseconds / 1e9
         self.poll_lifecycle(now)
         issues = {}
+        if self.dock is not None and not self.dock.server_is_ready():
+            issues['/dock_to_pose'] = 'action unavailable'
         for key, (received, stamp) in self.samples.items():
             reason = freshness(received, stamp, now, ros_now, self.max_age) or self.topic_issues.get(key, '')
             if reason:

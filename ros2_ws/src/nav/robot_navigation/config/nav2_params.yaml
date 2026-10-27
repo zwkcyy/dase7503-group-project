@@ -6,7 +6,7 @@
 #
 # Command velocity chain:
 #   controller_server / behavior_server -> /cmd_vel_nav
-#   -> velocity_smoother -> /cmd_vel (geometry_msgs/Twist) -> ESP32
+#   -> velocity_smoother -> /cmd_vel_requested -> motion_guard -> /cmd_vel -> ESP32
 
 # ---------------------------------------------------------------- localisation
 

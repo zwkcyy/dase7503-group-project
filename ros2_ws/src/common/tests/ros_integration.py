@@ -369,6 +369,12 @@ def main():
                 if {r['payload'] for r in confirmations} != expected or len(confirmations) != 9:
                     results[-1].update(passed=False, error='Missing or duplicate confirmation artifacts')
                 results[-1]['saved_confirmations'] = len(confirmations)
+                if mode == 'course':
+                    from robot_simulation.collision_audit import audit
+                    try:
+                        results[-1]['collision_audit'] = audit(run_dir)
+                    except (AssertionError, OSError, ValueError) as exc:
+                        results[-1].update(passed=False, error=f'Collision audit failed: {exc}')
     elif mode == 'preflight':
         results.extend(preflight_checks(outdir))
     elif mode == 'cancellation':

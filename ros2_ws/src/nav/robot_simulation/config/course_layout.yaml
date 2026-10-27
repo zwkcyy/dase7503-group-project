@@ -14,5 +14,15 @@ racks:
   - {label: B, x_mm: 1830.0, y_mm: 1380.0, yaw_rad: 3.141592653589793, qr: RACKB_DEMO}
   - {label: C, x_mm: 1330.0, y_mm: 1670.0, yaw_rad: 3.141592653589793, qr: RACKC_DEMO}
   - {label: D, x_mm: 1940.0, y_mm: 380.0, yaw_rad: 3.141592653589793, qr: RACKD_DEMO}
-# Racks are task points, not collidable structures; no lift/contact physics.
+# Planar assumptions: 140 mm short side from page 2; 400 mm long side
+# estimated conservatively from the drawing; 15 mm square legs are assumed.
+# Vertical under-deck clearance and lift mechanics remain unmeasured.
+rack_geometry_mm: {depth: 140.0, width: 400.0, leg: 15.0}
+docking_distance_mm: 420.0
+# Fill the back row first; each front-row rack has its own exit corridor.
+placement_poses_mm_rad:
+  - [220.0, 610.0, 3.141592653589793]
+  - [220.0, 1390.0, 3.141592653589793]
+  - [570.0, 1390.0, 3.141592653589793]
+  - [570.0, 610.0, 3.141592653589793]
 obstacles_mm: []

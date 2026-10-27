@@ -22,9 +22,13 @@ from std_srvs.srv import Trigger, SetBool
 class MissionState(Enum):
     WAIT_START = auto()
     NAV_TO_RACK = auto()
+    DOCK_RACK = auto()
+    EXIT_RACK = auto()
     WAIT_RACK_QR = auto()
     LIFT_RACK = auto()
     NAV_TO_DESTINATION = auto()
+    DOCK_DESTINATION = auto()
+    EXIT_DESTINATION = auto()
     VERIFY_DESTINATION = auto()
     LOWER_RACK = auto()
     COMPLETE = auto()
@@ -33,7 +37,9 @@ class MissionState(Enum):
 
 QR_STATES = {MissionState.WAIT_START, MissionState.WAIT_RACK_QR,
              MissionState.VERIFY_DESTINATION}
-NAV_STATES = {MissionState.NAV_TO_RACK, MissionState.NAV_TO_DESTINATION}
+DOCK_STATES = {MissionState.DOCK_RACK, MissionState.EXIT_RACK,
+               MissionState.DOCK_DESTINATION, MissionState.EXIT_DESTINATION}
+NAV_STATES = {MissionState.NAV_TO_RACK, MissionState.NAV_TO_DESTINATION} | DOCK_STATES
 TERMINAL_STATES = {MissionState.COMPLETE, MissionState.ERROR}
 
 
@@ -64,6 +70,10 @@ class DeliveryMission(Node):
         self.declare_parameter("navigation_timeout_s", 90.0)
         self.declare_parameter("competition_time_s", 180.0)
         self.declare_parameter("manage_load_envelope", True)
+        self.declare_parameter('use_docking', False)
+        self.declare_parameter('docking_distance_m', .42)
+        for key in ('placement_x_m', 'placement_y_m', 'placement_yaw_rad'):
+            self.declare_parameter(key, [0., 0., 0., 0.])
 
         self._coordinates_confirmed = bool(
             self.get_parameter("coordinates_confirmed").value
@@ -81,6 +91,17 @@ class DeliveryMission(Node):
             float(self.get_parameter("destination_y_m").value),
             float(self.get_parameter("destination_yaw_rad").value),
         )
+        self._docking = bool(self.get_parameter('use_docking').value)
+        self._dock_distance = float(self.get_parameter('docking_distance_m').value)
+        arrays = [list(self.get_parameter(key).value) for key in
+                  ('placement_x_m', 'placement_y_m', 'placement_yaw_rad')]
+        if self._docking and (any(len(a) != len(self._labels) for a in arrays)
+                or not .3 <= self._dock_distance <= .8
+                or any(not math.isfinite(v) for a in arrays for v in a)):
+            raise ValueError('Docking needs finite per-rack placements and a 0.3-0.8 m approach')
+        self._placements = list(zip(*arrays))
+        if self._docking and len(set(self._placements)) != len(self._placements):
+            raise ValueError('Docking placements must be distinct')
         self._qr_timeout = float(self.get_parameter("qr_timeout_s").value)
         self._start_timeout = float(self.get_parameter("start_timeout_s").value)
         self._request_timeout = float(
@@ -170,6 +191,7 @@ class DeliveryMission(Node):
         self._status_timer = self.create_timer(.5, self._publish_status)
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self._dock_client = ActionClient(self, NavigateToPose, 'dock_to_pose') if self._docking else None
         self._qr_scan_client = self.create_client(
             Trigger, str(self.get_parameter("qr_start_service").value)
         )
@@ -242,6 +264,7 @@ class DeliveryMission(Node):
             # The scanner publishes one result per request; clear any stale result.
             self._qr_received = ""
         self.get_logger().info(f"Mission state: {state.name}")
+        self._publish_status()
 
     def _fail(self, reason: str) -> None:
         if self._state in TERMINAL_STATES:
@@ -355,12 +378,13 @@ class DeliveryMission(Node):
         return goal
 
     def _send_navigation_goal(self, x: float, y: float, yaw: float) -> None:
-        if not self._nav_client.server_is_ready():
+        client = self._dock_client if self._state in DOCK_STATES else self._nav_client
+        if not client.server_is_ready():
             return
         goal = self._pose_goal(x, y, yaw)
         generation = self._generation
         try:
-            self._goal_future = self._nav_client.send_goal_async(goal)
+            self._goal_future = client.send_goal_async(goal)
             self._goal_sent = True
             self._pending_goal_requests.add(self._goal_future)
             self._goal_future.add_done_callback(
@@ -411,7 +435,36 @@ class DeliveryMission(Node):
         if self._state == MissionState.NAV_TO_RACK:
             self._transition(MissionState.WAIT_RACK_QR)
         elif self._state == MissionState.NAV_TO_DESTINATION:
+            self._transition(MissionState.DOCK_DESTINATION if self._docking else MissionState.VERIFY_DESTINATION)
+        elif self._state == MissionState.DOCK_RACK:
+            self._transition(MissionState.LIFT_RACK)
+        elif self._state == MissionState.EXIT_RACK:
+            self._transition(MissionState.NAV_TO_DESTINATION)
+        elif self._state == MissionState.DOCK_DESTINATION:
             self._transition(MissionState.VERIFY_DESTINATION)
+        elif self._state == MissionState.EXIT_DESTINATION:
+            self._finish_rack()
+
+    def _rack_pose(self):
+        i = self._rack_index
+        return (self._rack_x[i], self._rack_y[i], self._rack_yaw[i])
+
+    def _placement(self):
+        return self._placements[self._rack_index] if self._docking else self._destination
+
+    def _approach(self, pose):
+        x, y, yaw = pose
+        return (x-self._dock_distance*math.cos(yaw), y-self._dock_distance*math.sin(yaw), yaw)
+
+    def _finish_rack(self):
+        self.get_logger().info(f'Delivered rack {self._labels[self._rack_index]} and cleared its exit')
+        self._rack_index += 1
+        if self._rack_index >= len(self._labels):
+            elapsed = time.monotonic()-self._competition_started_at if self._competition_started_at else 0.
+            self.get_logger().info(f'Mission complete: delivered {len(self._labels)} racks in {elapsed:.1f} s')
+            self._transition(MissionState.COMPLETE)
+        else:
+            self._transition(MissionState.NAV_TO_RACK)
 
     def _publish_lift_command(self, command: int) -> None:
         msg = Int8()
@@ -508,15 +561,12 @@ class DeliveryMission(Node):
                 self._fail("Timed out while navigating to the rack")
                 return
             if not self._goal_sent:
-                self._send_navigation_goal(
-                    self._rack_x[self._rack_index],
-                    self._rack_y[self._rack_index],
-                    self._rack_yaw[self._rack_index],
-                )
+                pose = self._rack_pose()
+                self._send_navigation_goal(*(self._approach(pose) if self._docking else pose))
 
         elif self._state == MissionState.WAIT_RACK_QR:
             expected_code = self._rack_qr_codes[self._rack_index]
-            self._run_qr_step(expected_code, MissionState.LIFT_RACK,
+            self._run_qr_step(expected_code, MissionState.DOCK_RACK if self._docking else MissionState.LIFT_RACK,
                               elapsed, self._qr_timeout)
 
         elif self._state == MissionState.LIFT_RACK:
@@ -527,7 +577,18 @@ class DeliveryMission(Node):
                 self._fail("Timed out while navigating to the destination")
                 return
             if not self._goal_sent:
-                self._send_navigation_goal(*self._destination)
+                pose = self._placement()
+                self._send_navigation_goal(*(self._approach(pose) if self._docking else pose))
+
+        elif self._state in DOCK_STATES:
+            if elapsed >= self._navigation_timeout:
+                self._fail('Timed out while docking or clearing the rack')
+                return
+            if not self._goal_sent:
+                pose = self._rack_pose() if self._state in (MissionState.DOCK_RACK, MissionState.EXIT_RACK) else self._placement()
+                if self._state in (MissionState.EXIT_RACK, MissionState.EXIT_DESTINATION):
+                    pose = self._approach(pose)
+                self._send_navigation_goal(*pose)
 
         elif self._state == MissionState.VERIFY_DESTINATION:
             self._run_qr_step("END", MissionState.LOWER_RACK,
@@ -577,25 +638,12 @@ class DeliveryMission(Node):
             if not self._confirm_envelope(command == 1):
                 return
             if command == 1:
-                self._transition(MissionState.NAV_TO_DESTINATION)
+                self._transition(MissionState.EXIT_RACK if self._docking else MissionState.NAV_TO_DESTINATION)
             else:
-                self.get_logger().info(
-                    f"Delivered rack {self._labels[self._rack_index]}"
-                )
-                self._rack_index += 1
-                if self._rack_index >= len(self._labels):
-                    elapsed = (
-                        time.monotonic() - self._competition_started_at
-                        if self._competition_started_at is not None
-                        else 0.0
-                    )
-                    self.get_logger().info(
-                        f"Mission complete: delivered {len(self._labels)} racks "
-                        f"in {elapsed:.1f} s"
-                    )
-                    self._transition(MissionState.COMPLETE)
+                if self._docking:
+                    self._transition(MissionState.EXIT_DESTINATION)
                 else:
-                    self._transition(MissionState.NAV_TO_RACK)
+                    self._finish_rack()
             return
 
     def _confirm_envelope(self, loaded: bool) -> bool:
