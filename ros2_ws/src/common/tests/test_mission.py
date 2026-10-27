@@ -98,6 +98,61 @@ class MissionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 mission.DeliveryMission()
 
+    def test_direct_loaded_departure_and_shorter_empty_exit(self):
+        overrides = dict(Node.overrides, use_docking=True, retreat_after_pickup=False,
+                         placement_exit_distance_m=.365,
+                         placement_x_m=[.22, .22, .57, .57],
+                         placement_y_m=[.61, 1.39, 1.39, .61],
+                         placement_yaw_rad=[math.pi]*4)
+        with patch.object(Node, 'overrides', overrides):
+            self.node = mission.DeliveryMission()
+        def dock():
+            self.node._tick()
+            handle = GoalHandle()
+            self.node._dock_client.calls[-1][1].set_result(handle)
+            handle.result.set_result(SimpleNamespace(status=4))
+        self.qr('START')
+        for i, label in enumerate('ABCD'):
+            self.navigate()
+            self.qr(f'RACK{label}_aB12')
+            dock()
+            self.lift(1)
+            self.assertEqual(self.node._state, State.NAV_TO_DESTINATION)
+            self.navigate()
+            dock()
+            self.qr('END')
+            self.lift(0)
+            self.assertEqual(self.node._rack_index, i)
+            self.assertEqual(self.node._state, State.EXIT_DESTINATION)
+            dock()
+            goal = self.node._dock_client.calls[-1][0].pose.pose.position
+            self.assertAlmostEqual(goal.x, overrides['placement_x_m'][i]+.365)
+            self.assertAlmostEqual(goal.y, overrides['placement_y_m'][i])
+        self.assertEqual(self.node._state, State.COMPLETE)
+        self.assertEqual(len(self.node._dock_client.calls), 12)
+        self.assertEqual(len(self.node._nav_client.calls), 8)
+
+    def test_invalid_exit_distance_rejected_before_docking(self):
+        for value in (float('nan'), float('inf'), .1, -.1, .81):
+            with self.subTest(value=value), patch.dict(Node.overrides, {
+                    'use_docking': True, 'placement_exit_distance_m': value,
+                    'placement_x_m': [.22, .22, .57, .57],
+                    'placement_y_m': [.61, 1.39, 1.39, .61]}):
+                with self.assertRaises(ValueError):
+                    mission.DeliveryMission()
+
+    def test_direct_departure_still_waits_for_loaded_footprint_ack(self):
+        self.node._docking = True
+        self.node._retreat_after_pickup = False
+        self.node._manage_envelope = True
+        self.node._transition(State.LIFT_RACK)
+        self.lift(1)
+        self.assertEqual(self.node._state, State.LIFT_RACK)
+        self.assertFalse(self.node._nav_client.calls)
+        self.node._envelope_client.calls[-1][1].set_result(Trigger.Response(True))
+        self.node._tick()
+        self.assertEqual(self.node._state, State.NAV_TO_DESTINATION)
+
     def test_unconfirmed_coordinates_never_start(self):
         with patch.object(Node, "overrides", {}):
             node = mission.DeliveryMission()

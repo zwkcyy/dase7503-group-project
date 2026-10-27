@@ -46,6 +46,17 @@ class CourseSceneTests(unittest.TestCase):
             self.assertEqual(mission['rack_y_m'][i], rack['y_mm']/1000.)
             self.assertEqual(mission['rack_qr_codes'][i], rack['qr'])
 
+    def test_course_departure_policy_uses_geometry(self):
+        profile = load_profile(NAV/'robot_simulation/config/course_geometry.yaml', True)
+        mission = mission_config(self.scene, profile)['delivery_mission']['ros__parameters']
+        self.assertFalse(mission['retreat_after_pickup'])
+        self.assertAlmostEqual(mission['docking_distance_m'], .42)
+        self.assertAlmostEqual(mission['placement_exit_distance_m'], .365)
+
+    def test_invalid_departure_policy_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.changed(retreat_after_pickup='false')
+
     def test_map_dimensions_derive_from_scene_instead_of_another_default(self):
         scene = copy.deepcopy(self.scene)
         scene['size_mm'] = [3040., 2020.]

@@ -15,7 +15,7 @@ def main(output):
     directory = output/('viewer-'+uuid.uuid4().hex[:8])
 
     def check(node):
-        result = mission_check('COMPLETE', 210, True, True)(node)
+        result = mission_check('COMPLETE', 210, True, True, evidence_dir=directory)(node)
         until = time.monotonic()+.8
         spin_until(node, lambda: time.monotonic() >= until, 2.)
         image = ImageGrab.grab(xdisplay=os.environ.get('DISPLAY'))

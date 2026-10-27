@@ -72,6 +72,9 @@ class DeliveryMission(Node):
         self.declare_parameter("manage_load_envelope", True)
         self.declare_parameter('use_docking', False)
         self.declare_parameter('docking_distance_m', .42)
+        # Keep legacy/hardware configurations unchanged unless explicitly set.
+        self.declare_parameter('retreat_after_pickup', True)
+        self.declare_parameter('placement_exit_distance_m', 0.)
         for key in ('placement_x_m', 'placement_y_m', 'placement_yaw_rad'):
             self.declare_parameter(key, [0., 0., 0., 0.])
 
@@ -93,12 +96,17 @@ class DeliveryMission(Node):
         )
         self._docking = bool(self.get_parameter('use_docking').value)
         self._dock_distance = float(self.get_parameter('docking_distance_m').value)
+        self._retreat_after_pickup = bool(self.get_parameter('retreat_after_pickup').value)
+        self._placement_exit_distance = float(self.get_parameter('placement_exit_distance_m').value)
+        if self._placement_exit_distance == 0.:
+            self._placement_exit_distance = self._dock_distance
         arrays = [list(self.get_parameter(key).value) for key in
                   ('placement_x_m', 'placement_y_m', 'placement_yaw_rad')]
         if self._docking and (any(len(a) != len(self._labels) for a in arrays)
                 or not .3 <= self._dock_distance <= .8
+                or not .3 <= self._placement_exit_distance <= .8
                 or any(not math.isfinite(v) for a in arrays for v in a)):
-            raise ValueError('Docking needs finite per-rack placements and a 0.3-0.8 m approach')
+            raise ValueError('Docking needs finite per-rack placements and 0.3-0.8 m approach/exit distances')
         self._placements = list(zip(*arrays))
         if self._docking and len(set(self._placements)) != len(self._placements):
             raise ValueError('Docking placements must be distinct')
@@ -452,9 +460,10 @@ class DeliveryMission(Node):
     def _placement(self):
         return self._placements[self._rack_index] if self._docking else self._destination
 
-    def _approach(self, pose):
+    def _approach(self, pose, distance=None):
         x, y, yaw = pose
-        return (x-self._dock_distance*math.cos(yaw), y-self._dock_distance*math.sin(yaw), yaw)
+        distance = self._dock_distance if distance is None else distance
+        return (x-distance*math.cos(yaw), y-distance*math.sin(yaw), yaw)
 
     def _finish_rack(self):
         self.get_logger().info(f'Delivered rack {self._labels[self._rack_index]} and cleared its exit')
@@ -586,7 +595,9 @@ class DeliveryMission(Node):
                 return
             if not self._goal_sent:
                 pose = self._rack_pose() if self._state in (MissionState.DOCK_RACK, MissionState.EXIT_RACK) else self._placement()
-                if self._state in (MissionState.EXIT_RACK, MissionState.EXIT_DESTINATION):
+                if self._state == MissionState.EXIT_DESTINATION:
+                    pose = self._approach(pose, self._placement_exit_distance)
+                elif self._state == MissionState.EXIT_RACK:
                     pose = self._approach(pose)
                 self._send_navigation_goal(*pose)
 
@@ -638,7 +649,10 @@ class DeliveryMission(Node):
             if not self._confirm_envelope(command == 1):
                 return
             if command == 1:
-                self._transition(MissionState.EXIT_RACK if self._docking else MissionState.NAV_TO_DESTINATION)
+                # The carried rack moves with us. After footprint acknowledgement,
+                # Nav2 may plan directly from here using its current obstacles.
+                self._transition(MissionState.EXIT_RACK if self._docking and self._retreat_after_pickup
+                                 else MissionState.NAV_TO_DESTINATION)
             else:
                 if self._docking:
                     self._transition(MissionState.EXIT_DESTINATION)

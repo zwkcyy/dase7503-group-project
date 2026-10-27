@@ -60,9 +60,6 @@ class LoadEnvelope(Node):
         if self.busy or self.failed:
             response.message = 'Envelope update busy or previously failed; restart after inspection'
             return response
-        if any(not client.service_is_ready() for client in self.costmap_clients):
-            response.message = 'Both Nav2 costmap parameter services must be ready'
-            return response
         self.busy = True
         futures = []
         deadline = time.monotonic() + 1.5
@@ -70,15 +67,29 @@ class LoadEnvelope(Node):
         timer = None
         try:
             param = Parameter('footprint', value=json.dumps(polygon(self.profile, request.data)))
-            for client in self.costmap_clients:
-                futures.append(client.call_async(SetParameters.Request(parameters=[param.to_parameter_msg()])))
-
             def poll():
-                if not waiter.done() and (all(f.done() for f in futures) or time.monotonic() >= deadline):
+                if waiter.done():
+                    return
+                # Service discovery may lag even after another node's preflight
+                # succeeds. Wait asynchronously within the SAME 1.5 s deadline;
+                # never acknowledge or change the self-filter before both replies.
+                if time.monotonic() >= deadline:
+                    waiter.set_result(None)
+                    return
+                if not futures and all(c.service_is_ready() for c in self.costmap_clients):
+                    try:
+                        for client in self.costmap_clients:
+                            futures.append(client.call_async(SetParameters.Request(parameters=[param.to_parameter_msg()])))
+                    except Exception as exc:
+                        waiter.set_exception(exc)
+                        return
+                if len(futures) == len(self.costmap_clients) and all(f.done() for f in futures):
                     waiter.set_result(None)
 
             timer = self.create_timer(.02, poll, callback_group=self.group)
             await waiter
+            if len(futures) != len(self.costmap_clients):
+                raise RuntimeError('Timed out waiting for both Nav2 costmap parameter services')
             if any(not f.done() for f in futures):
                 raise RuntimeError('Timed out updating costmap footprints; state is uncertain')
             for future in futures:

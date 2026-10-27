@@ -29,7 +29,7 @@ def main(output):
         directory = output/(name+'-'+uuid.uuid4().hex[:8])
         result = run_case(name, 'course_demo.launch.py',
             ['rviz:=false', 'show_field:=false', f'scene_file:={scene_file}', f'output_dir:={directory}'],
-            124+i, output, mission_check('COMPLETE', 210, True, True), 'Mission complete: delivered 4 racks')
+            124+i, output, mission_check('COMPLETE', 210, True, True, evidence_dir=directory), 'Mission complete: delivered 4 racks')
         if result['passed']:
             try:
                 result['collision_audit'] = audit(directory)

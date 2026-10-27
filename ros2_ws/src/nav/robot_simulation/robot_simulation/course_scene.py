@@ -65,6 +65,8 @@ def load_scene(path):
     distance = numbers([scene['docking_distance_mm']], 1, 'docking distance')[0]
     if distance < 300:
         raise ValueError('Docking approach must start outside the rack')
+    if not isinstance(scene.get('retreat_after_pickup', True), bool):
+        raise ValueError('retreat_after_pickup must be a boolean')
     return scene
 
 
@@ -110,7 +112,25 @@ def course_profile(scene, profile):
     return result
 
 
-def mission_config(scene):
+def placement_exit_distance(scene, profile):
+    """Clear the dropped rack even while the empty body turns in place.
+
+    Bound the rack's rear edge using the simulation's accepted 40 mm / 0.08 rad
+    placement errors. Add 20 mm relative localisation uncertainty, the docking
+    controller's 8 mm stopping tolerance, and the configured footprint padding.
+    The current laser still guards the whole exit, including other racks.
+    """
+    x0, y0, x1, y1 = profile['empty_bounds_mm']
+    body_radius = max(math.hypot(x, y) for x in (x0, x1) for y in (y0, y1))
+    depth, width = [scene['rack_geometry_mm'][k] for k in ('depth', 'width')]
+    angle = min(.08, math.atan2(width, depth))
+    rack_reach = depth/2*math.cos(angle)+width/2*math.sin(angle)
+    distance_mm = body_radius+rack_reach+40.+20.+8.+profile['footprint_padding_mm']
+    # Round upward to 5 mm. Never clamp an unsafe larger robot down to 420 mm.
+    return math.ceil(distance_mm/5.)*5./1000.
+
+
+def mission_config(scene, profile=None):
     racks = scene['racks']
     x, y, yaw = scene['destination_pose_mm_rad']
     return {'delivery_mission': {'ros__parameters': {
@@ -118,6 +138,9 @@ def mission_config(scene):
         # explicitly non-surveyed and is never installed as a hardware default.
         'coordinates_confirmed': True, 'manage_load_envelope': True,
         'use_docking': True, 'docking_distance_m': scene['docking_distance_mm']/1000.,
+        'retreat_after_pickup': scene.get('retreat_after_pickup', True),
+        'placement_exit_distance_m': (placement_exit_distance(scene, profile) if profile is not None
+                                      else scene['docking_distance_mm']/1000.),
         'placement_x_m': [p[0]/1000. for p in scene['placement_poses_mm_rad']],
         'placement_y_m': [p[1]/1000. for p in scene['placement_poses_mm_rad']],
         'placement_yaw_rad': [float(p[2]) for p in scene['placement_poses_mm_rad']],
