@@ -22,6 +22,7 @@ def generate_launch_description():
                 'empty_only': 'false',
                 'ekf_params_file': str(nav / 'config/ekf.yaml'),
                 'params_file': str(nav / 'config/nav2_params.yaml'),
+                'map_file': '',
                 'use_sim_time': 'false', 'autostart': 'true', 'log_level': 'info',
                 'initial_x': '0.0', 'initial_y': '0.0', 'initial_yaw': '0.0', 'rviz': 'false'}
 
@@ -33,9 +34,12 @@ def generate_launch_description():
         profile = load_profile(args['geometry_file'], boolean('allow_unconfirmed_geometry'), boolean('empty_only'))
         with open(args['params_file'], encoding='utf-8') as stream:
             params = nav_parameters(yaml.safe_load(stream), profile, boolean('initial_loaded'))
+        if args['map_file']:
+            map_file = Path(args['map_file']).expanduser().resolve(strict=True)
+            params['map_server']['ros__parameters']['yaml_filename'] = str(map_file)
         directory = tempfile.TemporaryDirectory(prefix='dase7503-nav-')
         generated = Path(directory.name) / 'nav2.yaml'
-        generated.write_text(yaml.safe_dump(params, sort_keys=False), encoding='utf-8')
+        generated.write_text(yaml.safe_dump(params, sort_keys=False, allow_unicode=True), encoding='utf-8')
         common = {key: args[key] for key in ('use_sim_time', 'autostart', 'log_level')}
         common['params_file'] = str(generated)
 

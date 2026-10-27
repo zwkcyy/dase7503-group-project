@@ -14,13 +14,19 @@ case "$mode" in
   robustness)
     python3 scripts/vision_robustness.py "$output/robustness"
     ;;
-  rehearsal|navigation|vision|cancellation|envelope|integrated|integrated_faults|preflight)
+  ec_adapter)
+    python3 ros2_ws/src/common/tests/ros_ec_adapter.py "$output"
+    ;;
+  launch_parameters)
+    python3 ros2_ws/src/common/tests/ros_launch_parameters.py "$output"
+    ;;
+  rehearsal|navigation|vision|cancellation|envelope|integrated|integrated_faults|course|preflight)
     python3 ros2_ws/src/common/tests/ros_integration.py "$mode" "$output"
     ;;
   all)
-    for item in offline robustness rehearsal navigation vision cancellation envelope integrated integrated_faults preflight; do
+    for item in offline robustness launch_parameters rehearsal navigation vision cancellation envelope integrated integrated_faults course preflight ec_adapter; do
       bash scripts/check_nav.sh "$item" "$output"
     done
     ;;
-  *) echo 'Choose offline, robustness, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, preflight or all.' >&2; exit 2 ;;
+  *) echo 'Choose offline, robustness, launch_parameters, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course, preflight, ec_adapter or all.' >&2; exit 2 ;;
 esac

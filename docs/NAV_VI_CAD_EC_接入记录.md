@@ -1,7 +1,8 @@
 # CAD 模型与 EC 回填数据接入
 
 更新：2026-10-26。按 NAV / VI 负责人要求，使用现有交付资料继续实现。
-本轮是软件接入；没有进行实车动作、现场标定或新增／运行测试套件。
+首次接入仅完成软件与构建；随后按用户要求新增并运行验证，结果见
+[软件验证记录](NAV_VI_验证记录.md)。没有进行实车动作或现场标定。
 
 ## 本轮直接确定的方案
 
@@ -83,7 +84,7 @@
 
 | EC 原接口（经启动器隔离后） | NAV 接口 | 处理 |
 |---|---|---|
-| `/ec/wheel/odom`，Odometry | `/odom/wheel`，Odometry | 统一原表中的 `/wheel/odom` 与导航名称；检查时间戳、frame 和有限值；不发 TF |
+| `/ec/wheel/odom`，Odometry | `/odom/wheel`，Odometry | 统一原表中的 `/wheel/odom` 与导航名称；检查时间戳、frame、有限值和单位四元数；不发 TF |
 | `/ec/imu/data_raw`，Imu | `/imu/data_raw`，Imu | 保留 SI 单位；按配置旋转向量和协方差；不提供姿态；全零协方差使用注明为暂定的正数 |
 | `/ec/cmd_vel`，Twist | 从 `/cmd_vel` 接收 | 平移合速度限 0.5 m/s，角速度限 2 rad/s；输入和遥测超时停发运动 |
 | `/ec/lift_cmd`，String | 从 `/lift_cmd`，Int8 接收 | 0/1 转换为可配置的放下／抬起字符串；未确认前不重复发同一动作 |
@@ -109,6 +110,7 @@
 - 默认 `enable_motion=false`、`enable_lift=false`，可以先看模型和接收数据。
 - 启用运动后，只有里程计和 IMU 都新鲜才转发非零速度。速度指令停止 0.25 s 或遥测过期时，
   发送一次零速然后停止额外补发；不生成 arm 或维持 EC 在线的保活指令。
+- 遥测新鲜度包含消息传输途中已经消耗的时间；接收一条接近过期的消息不会重新获得完整 0.5 s。
 - 固件表中 500 ms watchdog 会停车并 disarm。重新 arm 依 EC 已有工具处理；本适配器不猜测其命令协议。
 - 表格未给出 Python 桥接 String 回调的精确内容约定。默认文本采用明确记载的 UART 命令
   `lift up` / `lift down` / `lift stop`，可配置；若桥接回调会自己加 `lift ` 前缀，应改成 `up/down/stop`。
@@ -128,7 +130,8 @@ bash scripts/nav.sh cad
 
 `build` 现在构建 8 个包，新增 `logistics_robot_description`。
 `cad` 使用本机域 75，只显示模型和适配后的坐标，不需要相机、EC、雷达。
-普通完整离线演示仍用 `bash scripts/nav.sh demo`。
+普通完整离线演示用 `bash scripts/nav.sh demo`，显示课程场地和实际扫码；
+中央障碍调试场景改用 `bash scripts/nav.sh regression-demo`。
 
 ## 5. EC 数据调试入口
 

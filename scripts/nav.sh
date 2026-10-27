@@ -53,10 +53,11 @@ case "$command" in
     cd "$workspace"
     colcon build --symlink-install --packages-select "${packages[@]}" "$@"
     ;;
-  demo|rehearsal|navigation|vision)
+  demo|regression-demo|rehearsal|navigation|vision)
     load_ros; simulation_env
     case "$command" in
-      demo) launch=integrated_demo.launch.py ;;
+      demo) launch=course_demo.launch.py ;;
+      regression-demo) launch=integrated_demo.launch.py ;;
       rehearsal) launch=rehearsal.launch.py ;;
       navigation) launch=navigation_demo.launch.py ;;
       vision) launch=vision_replay.launch.py ;;
@@ -95,8 +96,9 @@ case "$command" in
     exec python3 "$repo/scripts/export_nav_evidence.py" "$@"
     ;;
   help|--help|-h)
-    echo 'Usage: bash scripts/nav.sh install|build|demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
-    echo 'demo: automatic navigation + actual QR image decoding (synthetic sensors and lift).'
+    echo 'Usage: bash scripts/nav.sh install|build|demo|regression-demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
+    echo 'demo: course-shaped field viewer + actual Nav2 and QR decoding; approximate rack points and simulated lift.'
+    echo 'regression-demo: original central-obstacle fixture with RViz; not the course field layout.'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'
     echo 'cad: supplied CAD display. hardware: CAD + EC adapter; unloaded commissioning, no delivery mission.'
     echo 'ec: isolate an existing EC Python bridge and adapt its ROS topics; no automatic arm or lift completion.'

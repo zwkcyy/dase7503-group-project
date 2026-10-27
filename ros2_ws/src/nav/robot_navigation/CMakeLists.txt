@@ -4,7 +4,7 @@ project(robot_navigation)
 find_package(ament_cmake REQUIRED)
 
 install(
-  DIRECTORY config launch maps rviz
+  DIRECTORY config launch maps rviz scripts
   DESTINATION share/${PROJECT_NAME}
 )
 

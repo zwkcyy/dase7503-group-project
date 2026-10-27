@@ -10,4 +10,5 @@ setup(name='robot_simulation', version='0.1.0', packages=['robot_simulation'],
           'planar_base = robot_simulation.planar_base:main',
           'mock_peers = robot_simulation.mock_peers:main',
           'mission_camera = robot_simulation.mission_camera:main',
+          'field_viewer = robot_simulation.field_viewer:main',
           'image_replay = robot_simulation.image_replay:main']})

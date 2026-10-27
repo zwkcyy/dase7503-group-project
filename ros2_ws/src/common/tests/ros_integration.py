@@ -91,11 +91,13 @@ def mission_check(expected, timeout=35, navigation=False, real_vision=False, fra
         if frame_dir:
             from cv_bridge import CvBridge
             import cv2
-            frame_dir.mkdir(parents=True, exist_ok=True)
             frame_counter = [0]
             def record_frame(msg):
                 frame_counter[0] += 1
                 if frame_counter[0] % 10 == 0:
+                    # The launch owns creation of its fresh evidence directory.
+                    # Wait for actual images before adding observer snapshots.
+                    frame_dir.mkdir(parents=True, exist_ok=True)
                     state = states[-1]['state'] if states else 'STARTUP'
                     cv2.imwrite(str(frame_dir/(state+'.png')), CvBridge().imgmsg_to_cv2(msg, 'bgr8'))
             node.create_subscription(Image, '/camera/image_raw', record_frame, qos_profile_sensor_data)
@@ -348,14 +350,16 @@ def main():
     elif mode == 'vision':
         results.append(run_case('vision', 'vision_replay.launch.py', ['show_results:=false'],
                                 116, outdir, vision_check))
-    elif mode in ('integrated', 'integrated_faults'):
-        scenarios = ['success'] if mode == 'integrated' else ['wrong_qr', 'missing_qr']
+    elif mode in ('integrated', 'integrated_faults', 'course'):
+        scenarios = ['success'] if mode in ('integrated', 'course') else ['wrong_qr', 'missing_qr']
         for index, scenario in enumerate(scenarios):
-            name = 'integrated_' + scenario
+            name = ('course_' if mode == 'course' else 'integrated_') + scenario
             run_dir = outdir/(name + '-' + uuid.uuid4().hex[:8])
-            results.append(run_case(name, 'integrated_demo.launch.py',
-                ['rviz:=false', 'show_results:=false', f'image_scenario:={scenario}', f'output_dir:={run_dir}'],
-                120+index, outdir, mission_check('COMPLETE' if scenario == 'success' else 'ERROR',
+            launch_file = 'course_demo.launch.py' if mode == 'course' else 'integrated_demo.launch.py'
+            display_arg = 'show_field:=false' if mode == 'course' else 'show_results:=false'
+            results.append(run_case(name, launch_file,
+                ['rviz:=false', display_arg, f'image_scenario:={scenario}', f'output_dir:={run_dir}'],
+                123 if mode == 'course' else 120+index, outdir, mission_check('COMPLETE' if scenario == 'success' else 'ERROR',
                     180, scenario == 'success', True, run_dir/'state_frames'),
                 'Mission complete: delivered 4 racks' if scenario == 'success' else 'Timed out waiting for QR marker RACKA_DEMO'))
             results[-1]['artifact_dir'] = str(run_dir)
@@ -372,7 +376,7 @@ def main():
     elif mode == 'envelope':
         results.append(envelope_check())
     else:
-        raise ValueError('Choose rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults or preflight')
+        raise ValueError('Choose rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course or preflight')
     (outdir / f'{mode}.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
     if not all(result['passed'] for result in results):
         raise SystemExit(1)

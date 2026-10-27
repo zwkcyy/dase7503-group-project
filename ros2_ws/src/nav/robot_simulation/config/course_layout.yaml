@@ -1,0 +1,18 @@
+# COURSE PRESENTATION SIMULATION ONLY. Not a surveyed mission configuration.
+# Page 2 supplies dimensions; page 3 supplies the labelled, schematic layout.
+# Approximate rack centres below are rounded from page 3, NOT dimensioned points.
+source: DASE7503 QR Code and Gamefield, pages 2-3
+layout_kind: course_schematic_simulation
+size_mm: [3020.0, 2000.0]
+start_zone_mm: [2420.0, 600.0, 3020.0, 1400.0]
+destination_zone_mm: [0.0, 300.0, 800.0, 1700.0]
+initial_pose_mm_rad: [2720.0, 1000.0, 3.141592653589793]
+destination_pose_mm_rad: [400.0, 1000.0, 3.141592653589793]
+position_basis: approximate_centres_from_page_3_not_surveyed
+racks:
+  - {label: A, x_mm: 1130.0, y_mm: 530.0, yaw_rad: 3.141592653589793, qr: RACKA_DEMO}
+  - {label: B, x_mm: 1830.0, y_mm: 1380.0, yaw_rad: 3.141592653589793, qr: RACKB_DEMO}
+  - {label: C, x_mm: 1330.0, y_mm: 1670.0, yaw_rad: 3.141592653589793, qr: RACKC_DEMO}
+  - {label: D, x_mm: 1940.0, y_mm: 380.0, yaw_rad: 3.141592653589793, qr: RACKD_DEMO}
+# Racks are task points, not collidable structures; no lift/contact physics.
+obstacles_mm: []

@@ -14,9 +14,9 @@ from robot_simulation.launch_support import validate_domain
 
 def generate_launch_description():
     share = Path(get_package_share_directory('robot_simulation'))
-    mission_file = str(share / 'config/demo_mission.yaml')
 
     def prepare(context):
+        mission_file = LaunchConfiguration('mission_file').perform(context)
         path = prepare_run_directory(LaunchConfiguration('output_dir').perform(context))
         check = ExecuteProcess(cmd=['ros2', 'run', 'robot_bringup', 'preflight', '--mode', 'full',
             '--mission-file', mission_file, '--timeout', '45', '--output', str(path/'preflight.json')], output='screen')
@@ -24,6 +24,9 @@ def generate_launch_description():
         return [
             IncludeLaunchDescription(str(share/'launch/navigation_demo.launch.py'), launch_arguments={
                 'domain_id': LaunchConfiguration('domain_id'), 'mission': 'false',
+                'geometry_file': LaunchConfiguration('geometry_file'),
+                'world_file': LaunchConfiguration('world_file'),
+                'map_file': LaunchConfiguration('map_file'),
                 'rviz': LaunchConfiguration('rviz')}.items()),
             Node(package='robot_simulation', executable='mock_peers', output='screen', parameters=[{
                 'mock_navigation': False, 'mock_envelope': False, 'mock_qr': False}]),
@@ -35,11 +38,16 @@ def generate_launch_description():
             Node(package='robot_vision', executable='qr_popup', output='screen',
                  condition=IfCondition(LaunchConfiguration('show_results'))),
             Node(package='robot_bringup', executable='run_recorder', output='screen', parameters=[{
-                'output_dir': str(path), 'source': 'planar_simulation_with_real_qr_decoder'}]),
+                'output_dir': str(path), 'source': LaunchConfiguration('record_source')}]),
             after_preflight(check, mission), check]
 
     output = str(Path.home()/'.ros/nav_vi_runs'/('integrated-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]))
     return LaunchDescription([
+        DeclareLaunchArgument('mission_file', default_value=str(share/'config/demo_mission.yaml')),
+        DeclareLaunchArgument('geometry_file', default_value=str(share/'config/demo_geometry.yaml')),
+        DeclareLaunchArgument('world_file', default_value=str(share/'config/demo_world.yaml')),
+        DeclareLaunchArgument('map_file', default_value=''),
+        DeclareLaunchArgument('record_source', default_value='planar_simulation_with_real_qr_decoder'),
         DeclareLaunchArgument('domain_id', default_value='75'),
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('show_results', default_value='true'),
