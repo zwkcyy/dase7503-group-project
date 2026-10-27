@@ -44,6 +44,13 @@ walls. Four distinct destination slots fill the back row first, with straight
 insertion and exit corridors. Fresh physical alignment is required before the
 simulated lift acknowledges completion. The camera fixture also checks position.
 
+After pickup the course mission now plans directly to the destination approach,
+without the former fixed 420 mm retreat. Lowering still requires a straight empty
+exit. Its length is computed from the body's turning radius, the deposited rack's
+rear extent, 40 mm / 0.08 rad placement error, 20 mm localisation uncertainty,
+8 mm docking tolerance and footprint padding: 365 mm for the current baseline.
+Larger geometry increases that distance rather than being clamped to 420 mm.
+
 The 5 mm wall map and ideal-sensor AMCL settings are simulation-specific. The
 body uses the CAD envelope (282.502 x 286.568 mm); rack short side 140 mm is a
 drawing-based baseline, long side 400 mm and 15 mm legs are explicit assumptions.
@@ -56,6 +63,11 @@ Every run saves `collision_summary.json` and `collision_trace.jsonl`. The explic
 Passing requires COMPLETE, four separate placements, zero actual collisions,
 zero simulator-blocked collision commands and >10 mm swept clearance throughout.
 The viewer renders actual rack positions, legs, slots and measured minimum gap.
+The audit also reports actual travel/reverse distances per phase and verifies
+four empty exits with no fixed pickup retreat. Deadline timing uses the larger
+of the trace-state interval and the independent START-to-COMPLETE observation,
+so delayed state delivery cannot make the run appear shorter. Course tests wait
+for the simulator and recorder to save their own final records before shutdown.
 
 ```bash
 bash scripts/nav.sh check course

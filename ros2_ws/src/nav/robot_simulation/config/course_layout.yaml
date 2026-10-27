@@ -19,6 +19,8 @@ racks:
 # Vertical under-deck clearance and lift mechanics remain unmeasured.
 rack_geometry_mm: {depth: 140.0, width: 400.0, leg: 15.0}
 docking_distance_mm: 420.0
+# Once lifted and the loaded footprint is acknowledged, let Nav2 plan directly.
+retreat_after_pickup: false
 # Fill the back row first; each front-row rack has its own exit corridor.
 placement_poses_mm_rad:
   - [220.0, 610.0, 3.141592653589793]

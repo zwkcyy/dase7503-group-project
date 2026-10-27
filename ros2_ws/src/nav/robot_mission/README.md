@@ -69,12 +69,29 @@ a monotonic wall clock, including when simulation is paused.
 
 ## Load envelope acknowledgement
 
+With `use_docking: true`, the mission inserts an aligned slow entry after rack
+QR confirmation, and a slow exit after lowering. A rack is counted only after
+its empty exit succeeds. `docking_distance_m` controls the approach; the separate
+`placement_exit_distance_m` controls the empty exit (0 inherits the approach).
+Both distances must be between 0.3 and 0.8 m and require geometry validation.
+
+`retreat_after_pickup: false` sends the next Nav2 goal directly after lift and
+loaded-footprint acknowledgement. It removes the fixed return to the pickup
+approach; Nav2 still plans around current obstacles and may reverse if needed.
+The default remains true for existing configurations. The course simulation
+explicitly enables direct departure and derives a 0.365 m empty exit from its
+body/rack geometry and uncertainty budgets. An empty exit must clear the rack
+before allowing the next route to turn or move sideways.
+
 With `manage_load_envelope: true` (the default), start the full NAV bringup too.
 After each fresh lift completion the mission calls `/nav/set_loaded`
 (`std_srvs/srv/SetBool`). Both costmaps and the laser self-filter must acknowledge
 the change before the mission sends its next navigation goal. Rejection, missing
 service or timeout ends the mission. Disabling this parameter is only for an
 explicit alternative integration that manages both footprints and filtering.
+Transient costmap service discovery is awaited asynchronously within the same
+1.5 s update deadline; unavailable services, partial updates or rejection never
+produce a success acknowledgement.
 `/mission/status` publishes JSON state, rack index and rack count at 2 Hz.
 
 ## Offline regression checks

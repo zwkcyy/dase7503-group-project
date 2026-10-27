@@ -30,6 +30,9 @@ into the Pi's ROS Python environment; its cv_bridge uses system libraries.
 - Course scene: published dimensions/zones, schematic label arrangement, common
   world/mission/map source, loaded wall clearance, invalid data rejection, and
   separation of accepted empty-only CAD data from full physical acceptance.
+- Departure: direct loaded navigation after footprint acknowledgement; four
+  mandatory empty exits; geometry-derived exit distance and turning clearance;
+  actual route/reverse-distance measurements and conservative task timing.
 
 ## Limits and checks on the robot
 
@@ -69,7 +72,9 @@ python3 ros2_ws/src/common/tests/ros_integration.py envelope /tmp/nav-checks
 ```
 
 The runner starts only its own processes in localhost ROS domains 100-117 and
-stops them at completion. The envelope check uses domain 118. It writes full logs and JSON summaries. Reserve those
+stops them at completion. Envelope checks use domains 118-119 for transient service
+discovery, permanently unavailable services, partial rejection and failure latching.
+They write full logs and JSON summaries. Reserve those
 domains during a run. Rehearsal covers success, wrong/missing QR, lift timeout,
 navigation abort/reject/timeout, envelope failure and the competition deadline.
 Navigation uses actual Nav2/EKF/AMCL with synthetic sensors and mock QR/lift.

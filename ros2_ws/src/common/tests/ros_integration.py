@@ -79,7 +79,7 @@ def run_case(name, launch, arguments, domain, outdir, check, expected_log=None):
     return result
 
 
-def mission_check(expected, timeout=35, navigation=False, real_vision=False, frame_dir=None):
+def mission_check(expected, timeout=35, navigation=False, real_vision=False, frame_dir=None, evidence_dir=None):
     def check(node):
         states, events, loads, codes = [], [], [], []
         counts = {'scan': 0, 'odometry': 0}
@@ -124,6 +124,21 @@ def mission_check(expected, timeout=35, navigation=False, real_vision=False, fra
                 for label in 'ABCD':
                     sequence.extend([f'RACK{label}_DEMO', 'END'])
                 assert codes == sequence, codes
+        if expected == 'COMPLETE' and evidence_dir is not None:
+            # The observer may receive COMPLETE before the simulator/recorder.
+            # Require their own terminal records before shutting any process down.
+            def finalized():
+                try:
+                    report = json.loads((Path(evidence_dir)/'collision_summary.json').read_text())
+                    record = json.loads((Path(evidence_dir)/'summary.json').read_text())
+                    with (Path(evidence_dir)/'collision_trace.jsonl').open('rb') as stream:
+                        stream.seek(max(0, stream.seek(0, 2)-4096))
+                        last = json.loads(stream.read().splitlines()[-1])
+                    return (report['mission_state'] == last['state'] == record['status']['state'] == 'COMPLETE'
+                            and all(r['state'] == 'delivered' for r in report['racks']))
+                except (OSError, ValueError, KeyError, IndexError, TypeError):
+                    return False
+            spin_until(node, finalized, 8.)
         return {'final_status': states[-1], 'sensor_messages': counts, 'load_changes': loads,
                 'decoded_payloads': codes, 'real_vision': real_vision}
     return check
@@ -261,17 +276,17 @@ def cancellation_check(outdir):
     return result
 
 
-def envelope_check():
+def envelope_check(unavailable=False):
     from rcl_interfaces.msg import SetParametersResult
     from rclpy.executors import SingleThreadedExecutor
     from std_srvs.srv import SetBool
     from robot_geometry.load_envelope import LoadEnvelope
     from robot_geometry.profile import load_profile, polygon
     profile_path = str(Path(get_package_share_directory('robot_simulation')) / 'config/demo_geometry.yaml')
-    rclpy.init(domain_id=118)
+    rclpy.init(domain_id=119 if unavailable else 118)
     executor = SingleThreadedExecutor()
     nodes = []
-    result = {'case': 'envelope', 'passed': False}
+    result = {'case': 'envelope_discovery_timeout' if unavailable else 'envelope', 'passed': False}
     try:
         profile = load_profile(profile_path, True)
         for name in ('local_costmap', 'global_costmap'):
@@ -294,9 +309,32 @@ def envelope_check():
                 executor.spin_once(timeout_sec=.05)
             assert predicate(), 'Envelope condition timed out'
         wait(lambda: client.service_is_ready() and all(c.service_is_ready() for c in manager.costmap_clients))
+        # Inject transient discovery lag while retaining real ROS parameter calls.
+        original_client = manager.costmap_clients[0]
+        ready_at = float('inf') if unavailable else time.monotonic()+.4
+        class DelayedDiscovery:
+            def service_is_ready(self):
+                return time.monotonic() >= ready_at and original_client.service_is_ready()
+            def __getattr__(self, name):
+                return getattr(original_client, name)
+        manager.costmap_clients[0] = DelayedDiscovery()
         future = client.call_async(SetBool.Request(data=True))
+        wait(lambda: manager.busy)
+        assert not manager.loaded and not future.done(), 'Envelope changed before service discovery'
         wait(future.done)
+        if unavailable:
+            assert not future.result().success and manager.failed and not manager.loaded and not manager.busy
+            assert 'Timed out waiting' in future.result().message
+            for node in nodes[:2]:
+                assert json.loads(node.get_parameter('footprint').value) == polygon(profile, False)
+            again = client.call_async(SetBool.Request(data=True))
+            wait(again.done)
+            assert not again.result().success
+            result.update(passed=True, timeout_retains_old_geometry=True)
+            return result
         assert future.result().success and manager.loaded
+        manager.costmap_clients[0] = original_client
+        result['delayed_discovery_verified'] = True
         for node in nodes[:2]:
             assert json.loads(node.get_parameter('footprint').value) == polygon(profile, True)
         nodes[1].add_on_set_parameters_callback(lambda params: SetParametersResult(successful=False, reason='injected'))
@@ -360,7 +398,8 @@ def main():
             results.append(run_case(name, launch_file,
                 ['rviz:=false', display_arg, f'image_scenario:={scenario}', f'output_dir:={run_dir}'],
                 123 if mode == 'course' else 120+index, outdir, mission_check('COMPLETE' if scenario == 'success' else 'ERROR',
-                    180, scenario == 'success', True, run_dir/'state_frames'),
+                    180, scenario == 'success', True, run_dir/'state_frames',
+                    run_dir if mode == 'course' else None),
                 'Mission complete: delivered 4 racks' if scenario == 'success' else 'Timed out waiting for QR marker RACKA_DEMO'))
             results[-1]['artifact_dir'] = str(run_dir)
             if scenario == 'success' and results[-1]['passed']:
@@ -380,7 +419,7 @@ def main():
     elif mode == 'cancellation':
         results.append(cancellation_check(outdir))
     elif mode == 'envelope':
-        results.append(envelope_check())
+        results.extend([envelope_check(), envelope_check(unavailable=True)])
     else:
         raise ValueError('Choose rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course or preflight')
     (outdir / f'{mode}.json').write_text(json.dumps(results, indent=2), encoding='utf-8')

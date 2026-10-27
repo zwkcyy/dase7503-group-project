@@ -1,17 +1,20 @@
 """Geometry and fault regressions for floor, carried and deposited racks."""
 import copy
 import math
+import json
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 
 NAV = Path(__file__).resolve().parents[2]/'nav'
 sys.path.insert(0, str(NAV/'robot_geometry'))
 sys.path.insert(0, str(NAV/'robot_simulation'))
-from robot_simulation.course_scene import load_scene, world_config, course_profile
+from robot_simulation.course_scene import load_scene, world_config, course_profile, placement_exit_distance
 from robot_simulation.rack_world import RackWorld, separation, compose, relative
 from robot_simulation.world import corners
 from robot_geometry.profile import load_profile
+from robot_simulation.collision_audit import route_metrics, mission_duration_seconds
 
 
 class RackCollisionTests(unittest.TestCase):
@@ -142,14 +145,56 @@ class RackCollisionTests(unittest.TestCase):
 
     def test_all_four_slots_fit_and_leave_reverse_exit(self):
         # Pure geometry test only: actual transit is separately exercised by ROS.
+        profile = load_profile(NAV/'robot_simulation/config/course_geometry.yaml', True)
+        distance = placement_exit_distance(self.scene, profile)
+        self.assertLess(distance, .42)
         for rack in self.model.racks:
             self.model.lift(rack['pose'], rack['label'])
             target = rack['destination']
             self.assertGreater(self.model.clearance(target)[0], .005)
             self.model.lower(target, rack['label'])
-            exit_pose = [target[0]+.42, target[1], target[2]]
+            exit_pose = [target[0]+distance, target[1], target[2]]
             self.assertGreater(self.model.swept_clearance(target, exit_pose)[0], .005)
         self.assertEqual([r['state'] for r in self.model.racks], ['delivered']*4)
+
+    def test_short_exit_clears_turning_body_with_pose_uncertainty(self):
+        profile = load_profile(NAV/'robot_simulation/config/course_geometry.yaml', True)
+        distance = placement_exit_distance(self.scene, profile)
+        self.assertAlmostEqual(distance, .365)
+        for rack in self.model.racks:
+            target = rack['destination']
+            # Accepted drop error towards the exit, plus yaw error. The actual
+            # robot stops 20 mm (localisation) + 8 mm (controller) short.
+            rack['pose'] = [target[0]+.04, target[1], target[2]+.08]
+            rack['state'] = 'delivered'
+            centre = [target[0]+distance-.028, target[1]]
+            for step in range(72):
+                self.assertGreater(self.model.clearance([*centre, step*math.tau/72])[0], .009)
+
+    def test_exit_distance_grows_with_geometry_without_clamping(self):
+        profile = load_profile(NAV/'robot_simulation/config/course_geometry.yaml', True)
+        profile['empty_bounds_mm'] = [-250., -250., 250., 250.]
+        self.assertGreater(placement_exit_distance(self.scene, profile), .42)
+
+    def test_route_distance_counts_real_reverse_motion_and_phase_entries(self):
+        rows = [{'state': 'LOWER_RACK', 'pose': [1., 1., math.pi]},
+                {'state': 'EXIT_DESTINATION', 'pose': [1.2, 1., math.pi]},
+                {'state': 'EXIT_DESTINATION', 'pose': [1.3, 1., math.pi]},
+                {'state': 'NAV_TO_RACK', 'pose': [1.3, 1., -math.pi]},
+                {'state': 'NAV_TO_RACK', 'pose': [1.2, 1., -math.pi]}]
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory)/'collision_trace.jsonl').write_text(''.join(json.dumps(r)+'\n' for r in rows))
+            route = route_metrics(directory)
+        self.assertAlmostEqual(route['total_translation_m'], .4)
+        self.assertAlmostEqual(route['reverse_translation_m'], .3)
+        self.assertEqual(route['phase_entries'], ['LOWER_RACK', 'EXIT_DESTINATION', 'NAV_TO_RACK'])
+
+    def test_delayed_first_state_cannot_shorten_mission_timing(self):
+        self.assertEqual(mission_duration_seconds(109., 114.), 114.)
+        self.assertEqual(mission_duration_seconds(115., 114.), 115.)
+        for seconds in (180., 181., None, float('nan'), float('inf'), -1., True):
+            with self.subTest(seconds=seconds), self.assertRaises(AssertionError):
+                mission_duration_seconds(109., seconds)
 
     def test_larger_rack_generates_larger_loaded_footprint(self):
         profile = load_profile(NAV/'robot_simulation/config/course_geometry.yaml', True)

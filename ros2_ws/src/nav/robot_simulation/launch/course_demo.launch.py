@@ -39,7 +39,7 @@ def generate_launch_description():
         params['controller_server']['ros__parameters']['general_goal_checker']['xy_goal_tolerance'] = .025
         params['controller_server']['ros__parameters']['general_goal_checker']['yaw_goal_tolerance'] = .04
         for name, value in [('scene.yaml', scene), ('world.yaml', world), ('nav2.yaml', params),
-                            ('mission.yaml', mission_config(scene)), ('geometry.yaml', profile),
+                            ('mission.yaml', mission_config(scene, profile)), ('geometry.yaml', profile),
                             ('field.yaml', map_config(scene))]:
             (path/name).write_text(yaml.safe_dump(value, sort_keys=False), encoding='utf-8')
         subprocess.run([sys.executable, str(nav/'scripts/generate_map.py'),
