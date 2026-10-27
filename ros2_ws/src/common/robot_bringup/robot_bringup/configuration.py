@@ -26,6 +26,17 @@ def mission_parameters(path):
             raise ValueError(f'{key} must have one value per rack')
         values.extend(array)
     values.extend(params.get('destination_' + name) for name in ('x_m', 'y_m', 'yaw_rad'))
+    if params.get('use_docking', False):
+        arrays = [params.get(key, []) for key in ('placement_x_m', 'placement_y_m', 'placement_yaw_rad')]
+        if any(not isinstance(a, list) or len(a) != len(labels) for a in arrays):
+            raise ValueError('Docking needs one placement per rack')
+        for array in arrays:
+            values.extend(array)
+        distance = params.get('docking_distance_m')
+        if isinstance(distance, bool) or not isinstance(distance, (float, int)) or not .3 <= distance <= .8:
+            raise ValueError('Docking distance must be 0.3-0.8 m')
+        if len(set(zip(*arrays))) != len(labels):
+            raise ValueError('Docking placements must be distinct')
     if any(isinstance(x, bool) or not isinstance(x, (float, int)) or not math.isfinite(x) for x in values):
         raise ValueError('All mission positions and angles must be finite numbers')
     for key in ('qr_timeout_s', 'request_timeout_s', 'lift_timeout_s', 'navigation_timeout_s', 'competition_time_s'):

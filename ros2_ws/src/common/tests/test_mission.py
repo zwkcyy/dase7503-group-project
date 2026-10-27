@@ -61,6 +61,43 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(len(self.node._nav_client.calls), 8)
         self.assertEqual([m.data for m in self.node._lift_pub.messages], [1, 0] * 4)
 
+    def test_docking_sequence_exits_before_counting_delivery(self):
+        overrides = dict(Node.overrides, use_docking=True,
+                         placement_x_m=[.22, .22, .57, .57],
+                         placement_y_m=[.61, 1.39, 1.39, .61],
+                         placement_yaw_rad=[math.pi]*4)
+        with patch.object(Node, 'overrides', overrides):
+            self.node = mission.DeliveryMission()
+        def dock():
+            self.node._tick()
+            handle = GoalHandle()
+            self.node._dock_client.calls[-1][1].set_result(handle)
+            handle.result.set_result(SimpleNamespace(status=4))
+        self.qr('START')
+        for i, label in enumerate('ABCD'):
+            self.navigate()
+            self.qr(f'RACK{label}_aB12')
+            self.assertEqual(self.node._state, State.DOCK_RACK)
+            dock()
+            self.lift(1)
+            self.assertEqual(self.node._state, State.EXIT_RACK)
+            dock()
+            self.navigate()
+            self.assertEqual(self.node._state, State.DOCK_DESTINATION)
+            dock()
+            self.qr('END')
+            self.lift(0)
+            self.assertEqual(self.node._state, State.EXIT_DESTINATION)
+            self.assertEqual(self.node._rack_index, i)
+            dock()
+        self.assertEqual(self.node._state, State.COMPLETE)
+        self.assertEqual(len(self.node._dock_client.calls), 16)
+
+    def test_duplicate_docking_placements_rejected(self):
+        with patch.object(Node, 'overrides', dict(Node.overrides, use_docking=True)):
+            with self.assertRaises(ValueError):
+                mission.DeliveryMission()
+
     def test_unconfirmed_coordinates_never_start(self):
         with patch.object(Node, "overrides", {}):
             node = mission.DeliveryMission()

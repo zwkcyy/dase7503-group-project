@@ -7,6 +7,7 @@
 2026-10-26：已接收 CAD 模型与 EC 通信岗回填表，新增第八个包和 `cad`、`hardware`、`ec` 入口。
 当前接入与实物边界见 [CAD / EC 接入记录](NAV_VI_CAD_EC_接入记录.md)。
 课程演示已改为清晰的场地窗口；原中央障碍场景保留为独立回归入口。
+2026-10-27：课程演示已加入货架腿、载货外伸和放下后障碍物、四个独立放置位、低速入架/退出及运行中停车保护。
 
 ## 1. 本机立即运行
 
@@ -18,20 +19,20 @@ bash scripts/nav.sh demo
 ```
 
 脚本自动加载 ROS 和 `/home/adminis/dase7503-nav-work/install`，使用本机隔离域 75。
-会打开课程场地窗口：绿色终点、蓝色起点、四个货架任务点、实际仿真位姿、Nav2 路线和扫码结果。
+会打开课程场地窗口：绿色终点、蓝色起点、四个会移动的货架及腿部、放置位、实际仿真位姿、Nav2 路线和扫码结果。
 启动自检通过后才启动任务。无需手动点目标或启动扫描。调试时可加 `rviz:=true`。
 长宽和起终区域采用课程尺寸；A/B/C/D 位置按第 3 页示意图估计，尚非现场测量值。
 
 完整顺序：
 
 1. 模拟相机发布 START 图片，真正的视觉节点连续确认后，任务开始计时。
-2. 实际 Nav2 导航至示例货架；模拟相机按任务状态提供货架二维码图片。
-3. 视觉节点从图片中解码；任务核对完整内容，再请求模拟升降。
+2. 实际 Nav2 导航至货架接近点；模拟相机核对位置、朝向和任务状态后提供二维码图片。
+3. 视觉节点从图片中解码；任务核对完整内容，低速直线入架、停车，再请求模拟升降。
 4. 升降反馈后，确认两个代价地图和自体过滤的载货轮廓更新。
-5. 导航至目的地，实际解码 END，模拟放下货架并更新空载轮廓。
-6. 重复四个货架，终端显示 `Mission state: COMPLETE`。
+5. 载货退出，导航至该架独立放置位的接近点，低速对位，实际解码 END，放下并更新空载轮廓。
+6. 空载退出后才计为该架完成。重复四架，终端显示 `Mission state: COMPLETE`。
 
-图像由任务状态生成，不建模货架在镜头里的实际位置、视野、对位或光照。
+图像由任务状态及实际位置门槛生成，仍不建模相机投影、视野遮挡和光照。
 运动、激光、IMU、轮速与升降仍为模拟输入；路径规划、定位融合、二维码解码和任务控制使用实际软件。
 
 完成后在启动终端按 Ctrl+C。关闭某个窗口不会停止整套节点。
@@ -90,7 +91,14 @@ bash scripts/nav.sh doctor --mode vision
 | 扫码来源 | 恰好一个二维码结果发布者，避免混入另一个模拟扫码节点 |
 
 自检是启动门槛，不是持续急停控制器，也不能证明硬件、图像内容或升降完成语义正确。
-运行过程仍由现有任务超时、Nav2 故障处理和 EC 停止机制处理；实车停止效果需要现场验收。
+运行中另有 `motion_guard`：指令源、激光、轮速、IMU、融合里程计或 TF 过期会输出零速；扫码、升降及任务终止时也停车。
+它不能代替 EC 的独立通信看门狗；实车停止距离需现场验收。人工锁定停车命令（使用同一 ROS 域）：
+
+```bash
+ros2 service call /nav/emergency_stop std_srvs/srv/Trigger '{}'
+```
+
+停车锁定后先检查原因，再整套重启；没有自动恢复或自动放货。
 
 ## 4. 异常场景和重复验证
 
@@ -110,6 +118,9 @@ bash scripts/nav.sh check launch_parameters
 bash scripts/nav.sh check integrated
 bash scripts/nav.sh check integrated_faults
 bash scripts/nav.sh check course
+bash scripts/nav.sh check collision_stress
+bash scripts/nav.sh check collision_faults
+bash scripts/nav.sh check motion_safety
 bash scripts/nav.sh check preflight
 bash scripts/nav.sh check ec_adapter
 # 包括既有的任务异常、导航、六类二维码、取消、轮廓服务检查：

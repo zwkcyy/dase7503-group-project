@@ -17,13 +17,15 @@ def generate_launch_description():
         geometry = LaunchConfiguration('geometry_file').perform(context)
         world_file = LaunchConfiguration('world_file').perform(context)
         with open(world_file, encoding='utf-8') as stream:
-            initial = yaml.safe_load(stream)['initial_pose']
+            world = yaml.safe_load(stream)
+            initial = world.get('localization_pose', world['initial_pose'])
         return [
             Node(package='robot_simulation', executable='planar_base', output='screen',
                  parameters=[{'geometry_file': geometry, 'world_file': world_file}]),
             IncludeLaunchDescription(str(nav / 'launch/bringup.launch.py'), launch_arguments={
                 'geometry_file': geometry, 'allow_unconfirmed_geometry': 'true', 'initial_loaded': 'false',
                 'map_file': LaunchConfiguration('map_file'),
+                'params_file': LaunchConfiguration('params_file'),
                 'rviz': LaunchConfiguration('rviz'), 'initial_x': str(initial[0]),
                 'initial_y': str(initial[1]), 'initial_yaw': str(initial[2])}.items())]
 
@@ -31,6 +33,7 @@ def generate_launch_description():
         DeclareLaunchArgument('geometry_file', default_value=str(share/'config/demo_geometry.yaml')),
         DeclareLaunchArgument('world_file', default_value=str(share/'config/demo_world.yaml')),
         DeclareLaunchArgument('map_file', default_value=''),
+        DeclareLaunchArgument('params_file', default_value=str(nav/'config/nav2_params.yaml')),
         DeclareLaunchArgument('domain_id', default_value='75'),
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('mission', default_value='false'),

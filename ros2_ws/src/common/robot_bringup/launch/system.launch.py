@@ -36,7 +36,7 @@ def generate_launch_description():
             '--mission-file', args['mission_file'], '--geometry-file', args['geometry_file'],
             '--image-topic', args['image_topic'], '--output', str(path/'preflight.json')], output='screen')
         mission = Node(package='robot_mission', executable='delivery_mission', output='screen', parameters=[args['mission_file']])
-        return [
+        actions = [
             IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={key: args[key] for key in
                 ('geometry_file', 'initial_loaded', 'initial_x', 'initial_y', 'initial_yaw', 'rviz')}.items()),
             IncludeLaunchDescription(str(vision/'launch/vision_bringup.launch.py'), launch_arguments={
@@ -46,6 +46,10 @@ def generate_launch_description():
             Node(package='robot_bringup', executable='run_recorder', output='screen', parameters=[{
                 'output_dir': str(path), 'source': 'robot_session_pending_physical_acceptance'}]),
             after_preflight(check, mission), check]
+        if params.get('use_docking'):
+            actions.insert(0, Node(package='robot_mission', executable='docking_controller', output='screen',
+                                   parameters=[{'geometry_file': args['geometry_file']}]))
+        return actions
 
     return LaunchDescription([*[DeclareLaunchArgument(key, default_value=value) for key, value in defaults.items()],
         DeclareLaunchArgument('initial_x', description='Measured initial map x in metres'),

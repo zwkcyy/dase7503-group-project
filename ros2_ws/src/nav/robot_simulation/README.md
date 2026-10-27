@@ -2,7 +2,8 @@
 
 These launch files use an isolated ROS domain (75) and localhost discovery.
 Use the same environment in every terminal. Run one workflow at a time.
-Robot geometry, rack poses and QR suffixes are examples, not measured values.
+The course robot uses the supplied CAD planar envelope. Rack dimensions/poses
+include explicit assumptions; DEMO QR suffixes are not the team's physical labels.
 The course scenario adopts the published field dimensions and start/end zones.
 
 ```bash
@@ -36,8 +37,38 @@ of the original course PDF. Rack centres are estimates from the labelled page 3
 schematic; the dimensioned drawing does not identify A/B/C/D unambiguously.
 The view places destination above start; ROS coordinates remain x along 3020 mm,
 y along 2000 mm. Vehicle outlines use the same geometry snapshot as navigation.
-Rack markers are task locations, not contact bodies. The four deliveries share
-one destination target, so success does not prove separate physical placements.
+Four-legged racks are contact bodies. Lifting preserves the actual relative
+transform; lowering restores legs at the actual placement, with no snapping.
+The vehicle body checks every floor leg; carried decks check other decks and
+walls. Four distinct destination slots fill the back row first, with straight
+insertion and exit corridors. Fresh physical alignment is required before the
+simulated lift acknowledges completion. The camera fixture also checks position.
+
+The 5 mm wall map and ideal-sensor AMCL settings are simulation-specific. The
+body uses the CAD envelope (282.502 x 286.568 mm); rack short side 140 mm is a
+drawing-based baseline, long side 400 mm and 15 mm legs are explicit assumptions.
+The loaded footprint includes attachment translation/yaw tolerances. Vertical
+under-deck clearance, lift forces, wheel slip and optical visibility are not
+certified; the CAD height conflict (223.04 mm versus 180 mm course limit) remains.
+
+Every run saves `collision_summary.json` and `collision_trace.jsonl`. The explicit
+`check course` command replays the trajectory and writes `collision_audit.json`.
+Passing requires COMPLETE, four separate placements, zero actual collisions,
+zero simulator-blocked collision commands and >10 mm swept clearance throughout.
+The viewer renders actual rack positions, legs, slots and measured minimum gap.
+
+```bash
+bash scripts/nav.sh check course
+bash scripts/nav.sh check collision_stress   # offsets, thicker legs, repeat
+bash scripts/nav.sh check collision_faults   # live sensor failures/operator stop
+bash scripts/nav.sh check motion_safety      # real ROS safety callbacks
+```
+
+All navigation launches include `motion_guard` between the velocity smoother
+and `/cmd_vel`. It stops on stale controller commands, laser, wheel odometry,
+IMU, fused odometry or TF, and holds still during scan/lift/terminal phases.
+`/nav/emergency_stop` (Trigger) latches zero motion until restart. The EC hardware
+watchdog remains necessary if ROS or the guard process itself fails.
 
 The original central-obstacle scene remains an explicitly named regression fixture:
 

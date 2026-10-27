@@ -20,6 +20,7 @@ setup(
     description="Parameter-driven rack collection and delivery mission.",
     license="Apache-2.0",
     entry_points={
-        "console_scripts": ["delivery_mission = robot_mission.delivery_mission:main"],
+        "console_scripts": ["delivery_mission = robot_mission.delivery_mission:main",
+                            "docking_controller = robot_mission.docking_controller:main"],
     },
 )

@@ -27,9 +27,14 @@ def generate_launch_description():
                 'geometry_file': LaunchConfiguration('geometry_file'),
                 'world_file': LaunchConfiguration('world_file'),
                 'map_file': LaunchConfiguration('map_file'),
+                'params_file': LaunchConfiguration('params_file'),
                 'rviz': LaunchConfiguration('rviz')}.items()),
             Node(package='robot_simulation', executable='mock_peers', output='screen', parameters=[{
-                'mock_navigation': False, 'mock_envelope': False, 'mock_qr': False}]),
+                'mock_navigation': False, 'mock_envelope': False, 'mock_qr': False}],
+                condition=IfCondition(LaunchConfiguration('mock_lift'))),
+            Node(package='robot_mission', executable='docking_controller', output='screen',
+                 condition=IfCondition(LaunchConfiguration('docking')),
+                 parameters=[{'geometry_file': LaunchConfiguration('geometry_file')}]),
             Node(package='robot_simulation', executable='mission_camera', output='screen', parameters=[{
                 'mission_file': mission_file, 'scenario': LaunchConfiguration('image_scenario')}]),
             Node(package='robot_vision', executable='qr_detector_node', output='screen', parameters=[{
@@ -47,6 +52,9 @@ def generate_launch_description():
         DeclareLaunchArgument('geometry_file', default_value=str(share/'config/demo_geometry.yaml')),
         DeclareLaunchArgument('world_file', default_value=str(share/'config/demo_world.yaml')),
         DeclareLaunchArgument('map_file', default_value=''),
+        DeclareLaunchArgument('params_file', default_value=str(Path(get_package_share_directory('robot_navigation'))/'config/nav2_params.yaml')),
+        DeclareLaunchArgument('mock_lift', default_value='true'),
+        DeclareLaunchArgument('docking', default_value='false'),
         DeclareLaunchArgument('record_source', default_value='planar_simulation_with_real_qr_decoder'),
         DeclareLaunchArgument('domain_id', default_value='75'),
         DeclareLaunchArgument('rviz', default_value='true'),

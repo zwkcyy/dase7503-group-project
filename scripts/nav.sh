@@ -33,7 +33,7 @@ case "$command" in
     "${elevate[@]}" apt-get install -y ros-jazzy-navigation2 ros-jazzy-nav2-bringup \
       ros-jazzy-robot-localization ros-jazzy-laser-filters ros-jazzy-xacro \
       ros-jazzy-cv-bridge python3-colcon-common-extensions python3-opencv \
-      python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk fonts-noto-cjk \
+      python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk python3-matplotlib fonts-noto-cjk \
       python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui
     ;;
   build)
@@ -97,7 +97,7 @@ case "$command" in
     ;;
   help|--help|-h)
     echo 'Usage: bash scripts/nav.sh install|build|demo|regression-demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
-    echo 'demo: course-shaped field viewer + actual Nav2 and QR decoding; approximate rack points and simulated lift.'
+    echo 'demo: course field + actual Nav2/QR; dynamic rack collisions, docking, four placements and synthetic lift.'
     echo 'regression-demo: original central-obstacle fixture with RViz; not the course field layout.'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'
     echo 'cad: supplied CAD display. hardware: CAD + EC adapter; unloaded commissioning, no delivery mission.'

@@ -38,6 +38,8 @@ def main(args=None):
     root.geometry('1440x900')
     root.minsize(960, 600)
     if node.get_parameter('fullscreen').value:
+        # Also size explicitly for headless X servers without a window manager.
+        root.geometry(f'{root.winfo_screenwidth()}x{root.winfo_screenheight()}+0+0')
         root.attributes('-fullscreen', True)
     canvas = tk.Label(root, borderwidth=0, background='#f3f5f8')
     canvas.pack(fill='both', expand=True)
@@ -46,6 +48,7 @@ def main(args=None):
         raise RuntimeError('Install fonts-noto-cjk to display the Chinese field viewer')
     fonts = {size: ImageFont.truetype(str(font_file), size=size) for size in (14, 16, 18, 20, 24, 26, 32, 38, 46)}
     state = {'phase': None, 'index': 0, 'pose': None, 'pose_at': None,
+             'racks': [], 'metrics': {},
              'path': [], 'trail': [], 'loaded': False, 'codes': [], 'frame': None,
              'confirmed_frame': None, 'started': None, 'ended': None, 'closed': False}
     bridge = CvBridge()
@@ -56,6 +59,8 @@ def main(args=None):
                    'WAIT_RACK_QR': '识别货架二维码', 'LIFT_RACK': '模拟抬起',
                    'NAV_TO_DESTINATION': '运往目的地区域', 'VERIFY_DESTINATION': '确认终点二维码',
                    'LOWER_RACK': '模拟放下', 'COMPLETE': '四架配送流程完成', 'ERROR': '任务停止 · 检查日志'}
+    phase_names.update(DOCK_RACK='低速入架', EXIT_RACK='载货退出',
+                       DOCK_DESTINATION='对准独立放置位', EXIT_DESTINATION='放下后退出')
 
     def pose_callback(message):
         if message.header.frame_id != 'map':
@@ -108,6 +113,10 @@ def main(args=None):
     node.create_subscription(NavPath, '/plan', path_callback, 10)
     node.create_subscription(String, '/mission/status', status_callback, 10)
     node.create_subscription(String, '/qr/data', qr_callback, 10)
+    node.create_subscription(String, '/simulation/racks',
+                             lambda msg: state.update({k: v for k, v in json.loads(msg.data).items()
+                                                       if k in ('racks', 'metrics')}),
+                             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
     node.create_subscription(RosImage, '/camera/image_raw', image_callback, qos_profile_sensor_data)
     node.create_subscription(Bool, '/nav/loaded', lambda msg: state.update(loaded=msg.data),
                              QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL))
@@ -158,7 +167,7 @@ def main(args=None):
         pen.rectangle(rect(scene['destination_zone_mm']), fill='#d4efde', outline='#68ae83', width=2)
         pen.rectangle(rect(scene['start_zone_mm']), fill='#d8e8fd', outline='#7da6df', width=2)
         end_rect, start_rect = rect(scene['destination_zone_mm']), rect(scene['start_zone_mm'])
-        text((end_rect[0]+end_rect[2])/2, end_rect[1]+28, 'END  目的地区域', 20, '#287248', 'ma')
+        text((end_rect[0]+end_rect[2])/2, field[1]-23, 'END  目的地区域', 16, '#287248', 'ma')
         text((start_rect[0]+start_rect[2])/2, start_rect[1]+8, 'START', 20, '#285e9e', 'ma')
         for obstacle in scene['obstacles_mm']:
             pen.rectangle(rect(obstacle), fill='#a3acb8', outline='#566378', width=2)
@@ -171,19 +180,25 @@ def main(args=None):
             pen.line([point(*p) for p in state['trail']], fill='#a9c8c5', width=3)
         if len(state['path']) > 1 and state['phase'] in ('NAV_TO_RACK', 'NAV_TO_DESTINATION'):
             pen.line([point(*p) for p in state['path']], fill='#007e87', width=4)
-        for index, rack in enumerate(scene['racks']):
-            x, y = point(rack['x_mm']/1000., rack['y_mm']/1000.)
-            done = index < state['index']
-            carrying = index == state['index'] and state['loaded']
-            fill, ink = ('#e1e7e5', '#7d9187') if done or carrying else ('#ffdc83', '#6e4b0b')
-            card((x-38, y-18, x+38, y+18), fill, 6, '#d0ae58' if not done else '#b8c9c0')
-            text(x, y-15, rack['label'], 24, ink, 'ma')
-            text(x, y+21, '已送达' if done else ('搬运中' if carrying else '货架 '+rack['label']), 16, ink, 'ma')
+        depth, width, leg = [scene['rack_geometry_mm'][k]/1000 for k in ('depth', 'width', 'leg')]
+        bounds = [-depth/2, -width/2, depth/2, width/2]
+        for placement in scene['placement_poses_mm_rad']:
+            slot = [placement[0]/1000, placement[1]/1000, placement[2]]
+            pen.polygon([point(*p) for p in corners(slot, bounds)], outline='#78b291', width=2)
+        for rack in state['racks']:
+            pose = rack['pose']
+            fill = {'waiting': '#ffdc83', 'carried': '#bbe8da', 'delivered': '#81c9a3'}[rack['state']]
+            pen.polygon([point(*p) for p in corners(pose, bounds)], fill=fill, outline='#6e4b0b', width=2)
+            for a in (-depth/2, depth/2-leg):
+                for b in (-width/2, width/2-leg):
+                    pen.polygon([point(*p) for p in corners(pose, [a, b, a+leg, b+leg])], fill='#6e4b0b')
+            x, y = point(*pose[:2])
+            text(x, y-14, rack['label'], 20, '#26334a', 'ma')
         if state['pose'] is not None:
             pose = state['pose']
             if state['loaded']:
                 pen.polygon([point(*p) for p in corners(pose, loaded_bounds)],
-                            fill='#bbe8da', outline='#29876c', width=2)
+                            outline='#29876c', width=2)
             body = [point(*p) for p in corners(pose, empty_bounds)]
             pen.polygon([(x+3, y+4) for x, y in body], fill='#aeb8c5')
             pen.polygon(body, fill='#2867c7', outline='#174386', width=2)
@@ -237,7 +252,10 @@ def main(args=None):
         text(918, 879, ' → '.join(short) if short else '等待任务开始', 18, '#24696c')
         if state['pose_at'] is not None and time.monotonic()-state['pose_at'] > 2.:
             text(1200, 951, '仿真位姿数据已暂停', 16, '#b45309')
-        text(40, 965, '课程尺寸；货架位置按示意图估计。货架为任务点，未模拟腿部碰撞、取放接触和相机光照。', 16, '#64748b')
+        minimum = state['metrics'].get('minimum_clearance_m')
+        if minimum is not None:
+            text(918, 293, f"最小间距 {minimum*1000:.1f} mm · 碰撞拦截 {state['metrics']['blocked_collision_commands']}", 16)
+        text(40, 965, '平面碰撞：车体、货架腿、载货外伸、已放货架。位置/腿尺寸为仿真假设；垂直净空、接触力和光照未验证。', 16, '#64748b')
         width, height = max(1, canvas.winfo_width()), max(1, canvas.winfo_height())
         ratio = min(width/1600., height/1000.)
         image = image.resize((max(1, round(1600*ratio)), max(1, round(1000*ratio))), Image.Resampling.LANCZOS)

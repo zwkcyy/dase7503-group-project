@@ -20,13 +20,25 @@ case "$mode" in
   launch_parameters)
     python3 ros2_ws/src/common/tests/ros_launch_parameters.py "$output"
     ;;
+  motion_safety)
+    python3 ros2_ws/src/common/tests/ros_motion_safety.py "$output"
+    ;;
+  collision_stress)
+    python3 ros2_ws/src/common/tests/ros_collision_scenarios.py "$output"
+    ;;
+  collision_faults)
+    python3 ros2_ws/src/common/tests/ros_collision_faults.py "$output" "${3:-}"
+    ;;
+  viewer)
+    xvfb-run -a -s '-screen 0 1600x1000x24' python3 ros2_ws/src/common/tests/ros_viewer_check.py "$output"
+    ;;
   rehearsal|navigation|vision|cancellation|envelope|integrated|integrated_faults|course|preflight)
     python3 ros2_ws/src/common/tests/ros_integration.py "$mode" "$output"
     ;;
   all)
-    for item in offline robustness launch_parameters rehearsal navigation vision cancellation envelope integrated integrated_faults course preflight ec_adapter; do
+    for item in offline robustness launch_parameters motion_safety rehearsal navigation vision cancellation envelope integrated integrated_faults course collision_stress collision_faults preflight ec_adapter; do
       bash scripts/check_nav.sh "$item" "$output"
     done
     ;;
-  *) echo 'Choose offline, robustness, launch_parameters, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course, preflight, ec_adapter or all.' >&2; exit 2 ;;
+  *) echo 'Choose offline, robustness, launch_parameters, motion_safety, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course, collision_stress, collision_faults, viewer, preflight, ec_adapter or all.' >&2; exit 2 ;;
 esac
