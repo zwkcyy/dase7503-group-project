@@ -46,6 +46,12 @@ TERMINAL_STATES = {MissionState.COMPLETE, MissionState.ERROR}
 class DeliveryMission(Node):
     """Parameter-driven mission logic; physical poses must be confirmed first."""
 
+    def _now(self):
+        """Use simulation time for task deadlines; hardware keeps monotonic time."""
+        if self.get_parameter('use_sim_time').value:
+            return self.get_clock().now().nanoseconds / 1e9
+        return time.monotonic()
+
     def __init__(self) -> None:
         super().__init__("delivery_mission")
         self.declare_parameter("coordinates_confirmed", False)
@@ -61,6 +67,8 @@ class DeliveryMission(Node):
         self.declare_parameter("qr_topic", "/qr/data")
         self.declare_parameter("qr_start_service", "/qr/start_scan")
         self.declare_parameter("qr_stop_service", "/qr/stop_scan")
+        self.declare_parameter('prefer_expected_qr', False)
+        self.declare_parameter('qr_parameter_service', '/qr_detector/set_parameters')
         self.declare_parameter("lift_command_topic", "/lift_cmd")
         self.declare_parameter("lift_state_topic", "/lift_state")
         self.declare_parameter("qr_timeout_s", 15.0)
@@ -166,9 +174,10 @@ class DeliveryMission(Node):
 
         self._state = MissionState.WAIT_START
         self._generation = 0
-        self._state_entered = time.monotonic()
+        self._state_entered = self._now()
         self._rack_index = 0
         self._competition_started_at = None
+        self._completion_elapsed = None
         self._qr_received = ""
         self._lift_state = -1
         self._lift_feedback_sequence = 0
@@ -206,6 +215,14 @@ class DeliveryMission(Node):
         self._qr_stop_client = self.create_client(
             Trigger, str(self.get_parameter("qr_stop_service").value)
         )
+        self._qr_preference_client = None
+        self._qr_preference_future = None
+        self._qr_preference_value = None
+        self._qr_preference_sent_at = 0.
+        if self.get_parameter('prefer_expected_qr').value:
+            from rcl_interfaces.srv import SetParameters
+            self._qr_preference_client = self.create_client(
+                SetParameters, self.get_parameter('qr_parameter_service').value)
         self._qr_sub = self.create_subscription(
             String,
             str(self.get_parameter("qr_topic").value),
@@ -248,14 +265,19 @@ class DeliveryMission(Node):
         self._lift_feedback_sequence += 1
 
     def _publish_status(self):
+        elapsed = self._completion_elapsed
+        if elapsed is None:
+            elapsed = self._now()-self._competition_started_at if self._competition_started_at is not None else 0.
         self._status_pub.publish(String(data=json.dumps({
             'state': self._state.name, 'rack_index': self._rack_index,
-            'rack_count': len(self._labels)})))
+            'rack_count': len(self._labels), 'task_elapsed_s': elapsed})))
 
     def _transition(self, state: MissionState) -> None:
+        if state in TERMINAL_STATES and self._competition_started_at is not None:
+            self._completion_elapsed = self._now()-self._competition_started_at
         self._state = state
         self._generation += 1
-        self._state_entered = time.monotonic()
+        self._state_entered = self._now()
         self._goal_sent = False
         self._goal_handle = None
         self._goal_future = None
@@ -301,7 +323,7 @@ class DeliveryMission(Node):
         self._try_cancel_navigation()
 
     def _try_cancel_navigation(self) -> None:
-        now = time.monotonic()
+        now = self._now()
         if self._cancel_future is not None:
             if now - self._cancel_sent_at < self._request_timeout:
                 return
@@ -324,7 +346,7 @@ class DeliveryMission(Node):
         if future is not self._cancel_future:
             return
         self._cancel_future = None
-        self._cancel_retry_at = time.monotonic() + 0.5
+        self._cancel_retry_at = self._now() + 0.5
         try:
             response = future.result()
             # action_msgs/CancelGoal: 0 = accepted, 3 = already terminated.
@@ -338,7 +360,7 @@ class DeliveryMission(Node):
             self.get_logger().warning(f"Navigation cancel failed; will retry: {exc}")
 
     def _try_stop_qr_scan(self) -> None:
-        now = time.monotonic()
+        now = self._now()
         if self._scan_stop_future is not None:
             if now - self._scan_stop_sent_at < self._request_timeout:
                 return
@@ -428,7 +450,7 @@ class DeliveryMission(Node):
     def _on_navigation_result(self, future, generation: int) -> None:
         if generation != self._generation or self._state not in NAV_STATES:
             return
-        if time.monotonic() - self._state_entered >= self._navigation_timeout:
+        if self._now() - self._state_entered >= self._navigation_timeout:
             self._fail("Navigation result arrived after the step deadline")
             return
         try:
@@ -469,7 +491,7 @@ class DeliveryMission(Node):
         self.get_logger().info(f'Delivered rack {self._labels[self._rack_index]} and cleared its exit')
         self._rack_index += 1
         if self._rack_index >= len(self._labels):
-            elapsed = time.monotonic()-self._competition_started_at if self._competition_started_at else 0.
+            elapsed = self._now()-self._competition_started_at if self._competition_started_at is not None else 0.
             self.get_logger().info(f'Mission complete: delivered {len(self._labels)} racks in {elapsed:.1f} s')
             self._transition(MissionState.COMPLETE)
         else:
@@ -485,12 +507,12 @@ class DeliveryMission(Node):
             self._scan_requested
             or self._scan_future is not None
             or self._qr_received
-            or time.monotonic() < self._scan_retry_at
+            or self._now() < self._scan_retry_at
             or not self._qr_scan_client.service_is_ready()
         ):
             return
         self._scan_requested = True
-        self._scan_sent_at = time.monotonic()
+        self._scan_sent_at = self._now()
         generation = self._generation
         try:
             self._scan_future = self._qr_scan_client.call_async(Trigger.Request())
@@ -500,6 +522,37 @@ class DeliveryMission(Node):
         except Exception as exc:
             self._fail(f"Could not send QR scan request: {exc}")
 
+    def _prepare_qr_preference(self, expected):
+        """Acknowledge the visible-marker preference before starting the scanner."""
+        if self._qr_preference_client is None or self._qr_preference_value == expected:
+            return True
+        future = self._qr_preference_future
+        if future is not None:
+            if future.done():
+                self._qr_preference_future = None
+                try:
+                    results = future.result().results
+                    if len(results) != 1 or not results[0].successful:
+                        raise RuntimeError('Scanner rejected preferred_payload')
+                    self._qr_preference_value = expected
+                    return True
+                except Exception as exc:
+                    self._fail(f'QR preference failed: {exc}')
+            elif self._now()-self._qr_preference_sent_at >= self._request_timeout:
+                self._fail('Timed out setting the QR preference')
+            return False
+        if self._qr_preference_client.service_is_ready():
+            from rcl_interfaces.srv import SetParameters
+            from rcl_interfaces.msg import Parameter, ParameterValue
+            request = SetParameters.Request(parameters=[Parameter(name='preferred_payload',
+                value=ParameterValue(type=4, string_value=expected))])
+            self._qr_preference_sent_at = self._now()
+            try:
+                self._qr_preference_future = self._qr_preference_client.call_async(request)
+            except Exception as exc:
+                self._fail(f'Could not set QR preference: {exc}')
+        return False
+
     def _retry_after_unexpected_qr(self, expected: str) -> None:
         if not self._qr_received:
             return
@@ -508,7 +561,7 @@ class DeliveryMission(Node):
         self._scan_requested = False
         # The vision node becomes idle immediately after publishing a result.
         # Leave a short gap before asking it to start another scan.
-        self._scan_retry_at = time.monotonic() + 0.25
+        self._scan_retry_at = self._now() + 0.25
         self.get_logger().warning(
             f"Ignoring QR marker {received!r}; expected {expected!r}. Retrying scan."
         )
@@ -539,11 +592,11 @@ class DeliveryMission(Node):
             self._try_stop_qr_scan()
             return
 
-        elapsed = time.monotonic() - self._state_entered
+        elapsed = self._now() - self._state_entered
 
         if (
             self._competition_started_at is not None
-            and time.monotonic() - self._competition_started_at
+            and self._now() - self._competition_started_at
             >= self._competition_time
         ):
             self._fail(
@@ -553,7 +606,7 @@ class DeliveryMission(Node):
             return
 
         if (self._scan_future is not None
-                and time.monotonic() - self._scan_sent_at >= self._request_timeout):
+                and self._now() - self._scan_sent_at >= self._request_timeout):
             # Keep the pending future: if a delayed START succeeds after STOP,
             # its callback must send STOP again.
             self._fail("Timed out waiting for the QR start service response")
@@ -618,7 +671,7 @@ class DeliveryMission(Node):
         if self._qr_received == expected:
             self.get_logger().info(f"Confirmed QR marker: {expected}")
             if self._state == MissionState.WAIT_START:
-                self._competition_started_at = time.monotonic()
+                self._competition_started_at = self._now()
                 self.get_logger().info(
                     f"Competition timer started ({self._competition_time:.0f} s)"
                 )
@@ -627,7 +680,8 @@ class DeliveryMission(Node):
         elif self._qr_received:
             self._retry_after_unexpected_qr(expected)
         else:
-            self._request_qr_scan()
+            if self._prepare_qr_preference(expected):
+                self._request_qr_scan()
 
     def _run_lift_step(self, command: int, expected_state: int, elapsed: float) -> None:
         if elapsed >= self._lift_timeout:
@@ -666,7 +720,7 @@ class DeliveryMission(Node):
         if self._envelope_future is None:
             if not self._envelope_client.service_is_ready():
                 return False  # The existing lift deadline bounds discovery too.
-            self._envelope_started = time.monotonic()
+            self._envelope_started = self._now()
             request = SetBool.Request()
             request.data = loaded
             try:
@@ -674,9 +728,9 @@ class DeliveryMission(Node):
             except Exception as exc:
                 self._fail(f'Could not request load envelope: {exc}')
             return False
-        if time.monotonic() - self._envelope_started >= self._request_timeout:
+        if self._now() - self._envelope_started >= self._request_timeout:
             self._fail(f'Timed out updating load envelope after '
-                       f'{time.monotonic() - self._envelope_started:.3f}s '
+                       f'{self._now() - self._envelope_started:.3f}s '
                        f'(limit {self._request_timeout:.3f}s); navigation remains stopped')
             return False
         if not self._envelope_future.done():

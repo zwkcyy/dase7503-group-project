@@ -29,6 +29,11 @@ def wrap(angle):
 
 
 class DockingController(Node):
+    def task_time(self):
+        if self.get_parameter('use_sim_time').value:
+            return self.get_clock().now().nanoseconds/1e9
+        return time.monotonic()
+
     def __init__(self):
         super().__init__('docking_controller')
         self.declare_parameter('geometry_file', '')
@@ -66,7 +71,7 @@ class DockingController(Node):
 
     async def execute(self, handle):
         future = Future()
-        self.active = (handle, future, time.monotonic())
+        self.active = (handle, future, self.task_time())
         self.settled = None
         await future
         return NavigateToPose.Result()
@@ -87,7 +92,8 @@ class DockingController(Node):
         if handle.is_cancel_requested:
             self.finish('canceled')
             return
-        if now-started > 20.:
+        task_now = self.task_time()
+        if task_now-started > 20.:
             self.get_logger().error('Docking deadline exceeded')
             self.finish('abort')
             return

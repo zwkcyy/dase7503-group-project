@@ -61,6 +61,15 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(len(self.node._nav_client.calls), 8)
         self.assertEqual([m.data for m in self.node._lift_pub.messages], [1, 0] * 4)
 
+    def test_simulation_deadlines_follow_ros_clock(self):
+        self.node.parameters['use_sim_time'].value = True
+        self.node.now_ns = 12_000_000_000
+        self.assertEqual(self.node._now(), 12.)
+        self.now += 200.
+        self.assertEqual(self.node._now(), 12.)
+        self.node.now_ns += 2_000_000_000
+        self.assertEqual(self.node._now(), 14.)
+
     def test_docking_sequence_exits_before_counting_delivery(self):
         overrides = dict(Node.overrides, use_docking=True,
                          placement_x_m=[.22, .22, .57, .57],

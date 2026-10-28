@@ -77,6 +77,29 @@ class VisionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'opencv_threads'):
                     vision.QRDetectorNode()
 
+    def test_region_retry_restores_camera_coordinates(self):
+        polygon = np.array([[20, 20], [40, 20], [40, 40], [20, 40]], dtype=np.float32)
+        detector = Mock()
+        detector.detectAndDecodeMulti.return_value = (True, ('',), np.array([polygon]), ())
+        # The padded 32 px crop starts at (14, 14) and is enlarged three times.
+        detector.detectAndDecode.side_effect = [('', None, None),
+            ('RACKC_DEMO', np.array([(polygon-14)*3]), None)]
+        self.node.opencv_detector = detector
+        result = self.node.detect_with_opencv(np.full((100, 100, 3), 255, np.uint8))
+        self.assertEqual(result[0][0], 'RACKC_DEMO')
+        np.testing.assert_allclose(result[0][1], polygon)
+        self.assertEqual(detector.detectAndDecode.call_count, 2)
+
+    def test_region_retry_deduplicates_and_rejects_unrelated_payload(self):
+        polygon = np.array([[20, 20], [40, 20], [40, 40], [20, 40]], dtype=np.float32)
+        detector = Mock()
+        detector.detectAndDecodeMulti.return_value = (True, ('',)*8, np.array([polygon]*8), ())
+        detector.detectAndDecode.side_effect = [('', None, None), ('unrelated', None, None)]
+        self.node.opencv_detector = detector
+        result = self.node.detect_with_opencv(np.full((100, 100, 3), 255, np.uint8))
+        self.assertEqual(result, [])
+        self.assertEqual(detector.detectAndDecode.call_count, 2)
+
     def test_evidence_write_failure_does_not_block_confirmation(self):
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'vi/robot_vision'))
@@ -211,6 +234,16 @@ class VisionTests(unittest.TestCase):
             np.array([square * 5, square, square * 2]), ())
         self.assertEqual(self.node.detect_qr(None)[0], "END")
 
+    def test_preferred_payload_must_be_actually_visible(self):
+        square = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=np.float32)
+        self.node.parameters['preferred_payload'].value = 'END'
+        with patch.object(self.node, 'detect_with_wechat', return_value=[
+            ('RACKB_DEMO', square*4, 'test'), ('END', square, 'test')]):
+            self.assertEqual(self.node.detect_qr(None)[0], 'END')
+        with patch.object(self.node, 'detect_with_wechat', return_value=[('RACKB_DEMO', square*4, 'test')]), \
+             patch.object(self.node, 'detect_with_opencv', return_value=[]):
+            self.assertEqual(self.node.detect_qr(None)[0], 'RACKB_DEMO')
+
     def test_invalid_confirmation_parameters_rejected(self):
         cases = [("process_hz", 0.0), ("process_hz", math.nan),
                  ("confirm_window", math.inf), ("confirm_window", 0.0),
@@ -219,6 +252,17 @@ class VisionTests(unittest.TestCase):
             with self.subTest(name=name), patch.dict(Node.overrides, {name: value}):
                 with self.assertRaises(ValueError):
                     vision.QRDetectorNode()
+
+    def test_camera_resize_retry_can_find_preferred_marker(self):
+        self.node.parameters['preferred_payload'].value = 'RACKA_DEMO'
+        square = np.array([[20, 20], [40, 20], [40, 40], [20, 40]], dtype=np.float32)
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        with patch.object(self.node, 'detect_with_wechat', return_value=[('END', square, 'test')]), \
+             patch.object(self.node, 'detect_with_opencv', side_effect=[[], [('RACKA_DEMO', square*2, 'test')]]) as detector:
+            result = self.node.detect_qr(frame)
+        self.assertEqual(result[0], 'RACKA_DEMO')
+        np.testing.assert_allclose(result[1], square)
+        self.assertEqual(detector.call_args.args[0].shape, (960, 1280, 3))
 
 
 if __name__ == "__main__":

@@ -102,6 +102,7 @@ class Node:
 
     def __init__(self, name):
         self.parameters = {}
+        self.declare_parameter('use_sim_time', False)
         self.publishers = {}
         self.logger = Mock()
         self.now_ns = 10_000_000_000
