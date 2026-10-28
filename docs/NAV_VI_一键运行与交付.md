@@ -11,6 +11,15 @@
 
 ## 1. 本机立即运行
 
+2026-10-28 新增实际 Gazebo Harmonic 三维物理仿真。当前推荐先看
+[Gazebo 运行与验证记录](NAV_VI_Gazebo验证记录_20261028.md)，在同一仓库运行：
+
+```bash
+bash scripts/nav.sh gazebo
+```
+
+它使用真实渲染相机、物理轮组、接触升降和动态货架。下文 `demo` 保留为原平面回归演示。
+
 先在旧演示的启动终端按 Ctrl+C，一次运行一个演示。在 Ubuntu 中进入共享源码：
 
 ```bash
@@ -61,7 +70,7 @@ bash scripts/nav.sh demo
 ```
 
 `install` 安装 NAV／VI 公共依赖，会要求 sudo。它不安装未知型号的雷达、相机或 EC 串口适配器。
-`build` 将仓库 nav、vi、common 源码链接到 `~/dase7503-nav-work/src`，构建八个包。
+`build` 将仓库 nav、vi、common 源码链接到 `~/dase7503-nav-work/src`，构建九个包（含新增 Gazebo 包）。
 输出留在 Linux 文件系统。若已有源码链接指向另一份仓库，脚本拒绝覆盖。
 可用 `NAV_WORKSPACE=/自选路径 bash scripts/nav.sh build` 选择另一个工作空间；后续命令使用相同变量。
 
