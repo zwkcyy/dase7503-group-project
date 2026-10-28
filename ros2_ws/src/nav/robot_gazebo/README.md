@@ -65,12 +65,16 @@ interactive startup:
 | `course.sdf`, `assets/`, YAML files | Exact generated world, fixed QR textures, physics and navigation settings |
 | `model_assumptions.json` | CAD bounds, masses, under-deck clearance and modelling choices |
 | `source_manifest.json` | Git revision plus source SHA256 hashes when launched from a checkout |
-| `gazebo_trace.jsonl` | Actual model poses, lift joint position, encoder velocity and mission state |
+| `gazebo_trace.jsonl` | Buffered physical pose samples with their original Gazebo timestamps, lift joint position, encoder velocity and mission state |
 | `gazebo_events.jsonl`, `gazebo_summary.json` | Lift / placement events and contact classifications |
 | `qr/`, `qr_scan.csv` | Confirming camera frames from the real decoder |
 | `observer.json`, `camera-*.png` | Independent verification observations and phase snapshots |
 | `gazebo_audit.json` | Fourteen full-mission checks and measured simulation results |
 | `fault_checks.json` | Results from the separate intentional fault run |
+
+The recorder buffers transport samples before writing, independently of ROS
+`/clock` delivery and executor scheduling. It never interpolates gaps; queue
+overflow or a trace gap of 0.2 s or more fails the audit.
 
 Preserve failed runs as evidence. Generated files, images and logs stay outside
 Git. A directory generated on one machine contains absolute asset paths; regenerate

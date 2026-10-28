@@ -37,7 +37,8 @@ def audit(path):
     duration = observer.get('state', {}).get('task_elapsed_s', duration)
     checks['within_180_simulation_seconds'] = complete is not None and duration is not None and 0 < duration < 180
     gaps = [b['sim_seconds']-a['sim_seconds'] for a, b in zip(rows, rows[1:])]
-    checks['continuous_trace'] = bool(gaps) and min(gaps) > 0 and max(gaps) < .2
+    checks['continuous_trace'] = (bool(gaps) and min(gaps) > 0 and max(gaps) < .2
+                                  and summary.get('dropped_truth_rows', 0) == 0)
     depth, width = [scene['rack_geometry_mm'][k]/1000 for k in ('depth', 'width')]
     zone = [v/1000 for v in scene['destination_zone_mm']]
     placements, polygons = {}, []

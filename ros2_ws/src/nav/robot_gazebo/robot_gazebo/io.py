@@ -5,6 +5,7 @@ truth is published for evidence, never as localisation or encoder input.
 """
 import json
 import math
+from collections import deque
 import threading
 import time
 from pathlib import Path
@@ -39,13 +40,12 @@ class GazeboIO(Node):
         self.lock = threading.Lock()
         self.latest_poses, self.pose_received = {}, 0.
         self.contacts, self.contact_samples = {}, 0
+        self.truth_rows = deque(maxlen=5000)
+        self.last_truth_time, self.dropped_truth_rows = None, 0
         self.gz = GzNode()
-        self.gz.subscribe(Pose_V, '/world/course/dynamic_pose/info', self.on_truth)
         self.contact_topics = ['/gazebo/contacts/'+name for name in
             ['body', 'tray', 'front_left_wheel_link', 'front_right_wheel_link',
              'rear_left_wheel_link', 'rear_right_wheel_link', 'rack_A', 'rack_B', 'rack_C', 'rack_D']]
-        for topic in self.contact_topics:
-            self.gz.subscribe(Contacts, topic, self.on_contacts)
         self.state, self.index, self.delivered = 'WAIT_START', 0, 0
         self.task_elapsed = 0.
         self.pending, self.carried, self.target, self.lift_position = None, None, 0., None
@@ -57,7 +57,6 @@ class GazeboIO(Node):
         self.trace = (self.directory/'gazebo_trace.jsonl').open('x', encoding='utf-8')
         self.events_file = (self.directory/'gazebo_events.jsonl').open('x', encoding='utf-8')
         self.latest_snapshot = {}
-        self.last_recorded = None
         latched = QoSProfile(depth=100, durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.event_pub = self.create_publisher(String, '/simulation/events', latched)
         self.pose_pub = self.create_publisher(PoseStamped, '/simulation/pose', 10)
@@ -78,6 +77,10 @@ class GazeboIO(Node):
         self.wall_clock = Clock(clock_type=ClockType.STEADY_TIME)
         self.create_timer(.025, self.tick, clock=self.wall_clock)
         self.create_timer(.5, self.report, clock=self.wall_clock)
+        # Subscribe only after all state read by transport callbacks is ready.
+        self.gz.subscribe(Pose_V, '/world/course/dynamic_pose/info', self.on_truth)
+        for topic in self.contact_topics:
+            self.gz.subscribe(Contacts, topic, self.on_contacts)
         self.get_logger().info('GAZEBO PHYSICS: wheel drive, gravity/contact lift, rendered camera; no pose commands')
 
     def on_truth(self, msg):
@@ -86,6 +89,27 @@ class GazeboIO(Node):
                 'qx': p.orientation.x, 'qy': p.orientation.y, 'qz': p.orientation.z, 'qw': p.orientation.w,
                 'yaw': yaw(p.orientation)} for p in msg.pose if p.name == 'robot' or p.name.startswith('rack_')}
             self.pose_received = time.monotonic()
+            stamp = msg.header.stamp.sec+msg.header.stamp.nsec/1e9
+            if 'robot' in self.latest_poses and (self.last_truth_time is None or stamp > self.last_truth_time):
+                if len(self.truth_rows) == self.truth_rows.maxlen:
+                    self.dropped_truth_rows += 1
+                # Use physics timestamps, independently of /clock bridge startup
+                # and ROS executor scheduling. Never interpolate missing samples.
+                self.truth_rows.append(self.snapshot(stamp, dict(self.latest_poses)))
+                self.last_truth_time = stamp
+
+    def snapshot(self, stamp, poses):
+        return {'sim_seconds': stamp, 'mission_state': self.state, 'rack_index': self.index,
+            'task_elapsed_s': self.task_elapsed, 'delivered_count': self.delivered,
+            'carried': self.carried, 'poses': poses,
+            'lift_position_m': self.lift_position, 'encoder_velocity': list(self.velocity)}
+
+    def flush_truth(self):
+        with self.lock:
+            rows = list(self.truth_rows)
+            self.truth_rows.clear()
+        for row in rows:
+            self.trace.write(json.dumps(row)+'\n')
 
     def on_contacts(self, msg):
         with self.lock:
@@ -194,6 +218,7 @@ class GazeboIO(Node):
         now = self.get_clock().now().nanoseconds/1e9
         dt = min(.05, max(0., now-(self.last_sim if self.last_sim is not None else now)))
         self.last_sim = now
+        self.flush_truth()
         with self.lock:
             poses, fresh, contacts = dict(self.latest_poses), self.pose_received, self.contacts
             self.contacts = {}
@@ -221,19 +246,13 @@ class GazeboIO(Node):
         q = msg.pose.orientation
         q.x, q.y, q.z, q.w = [robot[k] for k in ('qx', 'qy', 'qz', 'qw')]
         self.pose_pub.publish(msg)
-        self.latest_snapshot = {'sim_seconds': now, 'mission_state': self.state, 'rack_index': self.index,
-            'task_elapsed_s': self.task_elapsed,
-            'delivered_count': self.delivered, 'carried': self.carried, 'poses': poses,
-            'lift_position_m': self.lift_position, 'encoder_velocity': self.velocity}
-        if self.last_recorded is None or now > self.last_recorded:
-            self.trace.write(json.dumps(self.latest_snapshot)+'\n')
-            self.last_recorded = now
+        self.latest_snapshot = self.snapshot(self.last_truth_time or now, poses)
 
     def report(self):
         data = {**self.latest_snapshot, 'engine': 'Gazebo Harmonic', 'moves': self.moves,
                 'contact_samples_received': self.contact_samples, 'allowed_contact_samples': self.allowed_contacts,
                 'unexpected_contact_samples': self.unexpected_contact_samples, 'unexpected_contacts': self.bad_contacts,
-                'emergency_latched': self.emergency}
+                'emergency_latched': self.emergency, 'dropped_truth_rows': self.dropped_truth_rows}
         temp = self.directory/'gazebo_summary.tmp'
         temp.write_text(json.dumps(data, indent=2), encoding='utf-8')
         temp.replace(self.directory/'gazebo_summary.json')
@@ -242,10 +261,11 @@ class GazeboIO(Node):
     def destroy_node(self):
         if rclpy.ok():
             self.velocity_pub.publish(Twist())
-        self.report()
         self.gz.unsubscribe('/world/course/dynamic_pose/info')
         for topic in self.contact_topics:
             self.gz.unsubscribe(topic)
+        self.flush_truth()
+        self.report()
         self.trace.close(); self.events_file.close()
         return super().destroy_node()
 
