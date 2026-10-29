@@ -62,6 +62,7 @@ class QRDetectorNode(Node):
         )
         self.declare_parameter('evidence_dir', '')
         self.declare_parameter('evidence_source', 'unspecified')
+        self.declare_parameter('preferred_payload', '')
         self.declare_parameter('opencv_threads', 1)
         opencv_threads = self.get_parameter('opencv_threads').value
         if isinstance(opencv_threads, bool) or not isinstance(opencv_threads, int) or not 1 <= opencv_threads <= 4:
@@ -482,6 +483,8 @@ class QRDetectorNode(Node):
     # =========================================================
     def detect_with_opencv(self, frame):
         results = []
+        candidates = []
+        preferred = self.get_parameter('preferred_payload').value
         # Multi-code detection avoids losing a coursework marker when another
         # (unrelated) QR is also visible. Older OpenCV builds retain the single
         # detector path below.
@@ -491,16 +494,19 @@ class QRDetectorNode(Node):
                 found, decoded, points, _ = multi(frame)
                 if found and points is not None:
                     for data, polygon in zip(decoded, points):
+                        candidates.append(polygon)
                         if data and self.valid_pattern.fullmatch(data.strip()):
                             pts = np.asarray(polygon, dtype=np.float32).reshape(-1, 2)
                             if np.isfinite(pts).all():
                                 results.append((data.strip(), pts, 'QRCodeDetector'))
             except Exception as e:
                 self.get_logger().debug(f'OpenCV multi-QR detection failed: {e}')
-        if results:
+        if results and (not preferred or any(r[0] == preferred for r in results)):
             return results
         try:
             data, points, _ = self.opencv_detector.detectAndDecode(frame)
+            if points is not None:
+                candidates.extend(np.asarray(points).reshape(-1, 4, 2))
             if data:
                 pts = None
                 if points is not None:
@@ -510,6 +516,39 @@ class QRDetectorNode(Node):
                 results.append((data.strip(), pts, 'QRCodeDetector'))
         except Exception as e:
             self.get_logger().warning(f'OpenCV fallback error: {e}')
+        if not results or (preferred and not any(r[0] == preferred for r in results)):
+            # Small markers in a full camera view may be detected but not decoded.
+            # Retry at most four detected regions, including a quiet-zone margin.
+            # Every returned payload must be decoded from pixels.
+            height, width = frame.shape[:2]
+            regions = []
+            for polygon in candidates:
+                pts = np.asarray(polygon, dtype=np.float32).reshape(-1, 2)
+                if len(pts) != 4 or not np.isfinite(pts).all():
+                    continue
+                area = abs(cv2.contourArea(pts))
+                regions.append((area, pts))
+            seen = set()
+            for _, pts in sorted(regions, key=lambda item: item[0], reverse=True)[:4]:
+                lo, hi = pts.min(axis=0), pts.max(axis=0)
+                margin = max(6., float(max(hi-lo))*.25)
+                x0, y0 = np.maximum(0, np.floor(lo-margin)).astype(int)
+                x1, y1 = np.minimum([width, height], np.ceil(hi+margin)).astype(int)
+                bounds = (x0, y0, x1, y1)
+                if bounds in seen or x1-x0 < 8 or y1-y0 < 8:
+                    continue
+                seen.add(bounds)
+                crop = frame[y0:y1, x0:x1]
+                scale = min(3., max(1., 240./max(crop.shape[:2])))
+                crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+                try:
+                    data, polygon, _ = self.opencv_detector.detectAndDecode(crop)
+                    if data and self.valid_pattern.fullmatch(data.strip()):
+                        restored = (np.asarray(polygon, dtype=np.float32).reshape(-1, 2)/scale+[x0, y0]
+                                    if polygon is not None else pts)
+                        results.append((data.strip(), restored, 'QRCodeDetector+region'))
+                except cv2.error as exc:
+                    self.get_logger().debug(f'OpenCV region retry failed: {exc}')
         return results
 
     # =========================================================
@@ -528,17 +567,22 @@ class QRDetectorNode(Node):
             if self.valid_pattern.fullmatch(result[0]) is not None
         ]
 
-        if not results:
-            results = [
+        preferred = self.get_parameter('preferred_payload').value
+        if not results or (preferred and not any(r[0] == preferred for r in results)):
+            results.extend([
                 result
                 for result in self.detect_with_opencv(frame)
                 if self.valid_pattern.fullmatch(result[0]) is not None
-            ]
+            ])
 
-        # Bound the retry cost and restore polygons to the original image frame.
-        if not results and 0 < max(frame.shape[:2]) < 240:
-            scale = min(4.0, 480.0 / max(frame.shape[:2]))
-            enlarged = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+        # A small marker may fail even the candidate detector. Retry one larger
+        # image (at most 1280 px), including when only a different marker decoded.
+        # Restore all polygons to camera coordinates; never infer the payload.
+        missing = not results or (preferred and not any(r[0] == preferred for r in results))
+        if missing and frame is not None and 0 < max(frame.shape[:2]) <= 640:
+            extent = max(frame.shape[:2])
+            scale = min(4.0, 480.0 / extent) if extent < 240 else 2.0
+            enlarged = cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
             for data, points, detector in self.detect_with_opencv(enlarged):
                 if self.valid_pattern.fullmatch(data):
                     results.append((data, points / scale if points is not None else None,
@@ -578,10 +622,11 @@ class QRDetectorNode(Node):
         if not valid_results:
             return None
 
-        # If multiple QR codes are visible,
-        # select the largest one.
+        # Prefer the requested marker only if it was actually decoded. If it is
+        # absent, report the largest visible valid marker; the mission still
+        # rejects wrong results and enforces its original timeout.
         valid_results.sort(
-            key=lambda item: item[3],
+            key=lambda item: (bool(preferred and item[0] == preferred), item[3]),
             reverse=True
         )
 

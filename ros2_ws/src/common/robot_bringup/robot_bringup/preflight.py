@@ -39,6 +39,9 @@ class Preflight(Node):
         topics = {}
         if mode in ('vision', 'full'):
             topics[image_topic] = Image
+            if self.mission.get('prefer_expected_qr'):
+                name = self.mission.get('qr_parameter_service', '/qr_detector/set_parameters')
+                self.service_clients[name] = self.create_client(SetParameters, name)
             for key in ('qr_start_service', 'qr_stop_service'):
                 name = self.mission.get(key, '/qr/' + ('start_scan' if key == 'qr_start_service' else 'stop_scan'))
                 self.service_clients[name] = self.create_client(Trigger, name)
@@ -156,6 +159,7 @@ def main(args=None):
     parser.add_argument('--image-topic', default='/camera/image_raw')
     parser.add_argument('--geometry-file')
     parser.add_argument('--mission-file')
+    parser.add_argument('--use-sim-time', action='store_true', help='Read sensor and TF timestamps against /clock')
     parser.add_argument('--allow-unconfirmed', action='store_true', help='Explicit simulation use only')
     parser.add_argument('--empty-only', action='store_true', help='Unloaded commissioning; never validates a delivery mission')
     parser.add_argument('--output')
@@ -173,6 +177,8 @@ def main(args=None):
         params = mission_parameters(opts.mission_file) if opts.mission_file else None
         rclpy.init(args=[])
         node = Preflight(opts.mode, opts.max_age, opts.image_topic, params)
+        if opts.use_sim_time:
+            node.set_parameters([rclpy.parameter.Parameter('use_sim_time', value=True)])
         deadline, stable_at, last_text, last_print = time.monotonic()+opts.timeout, None, '', 0.
         while rclpy.ok() and time.monotonic() < deadline:
             rclpy.spin_once(node, timeout_sec=.1)

@@ -1,5 +1,6 @@
 """Actual ROS node callback regressions; no actuator or navigation commands."""
 import json
+import math
 from pathlib import Path
 import sys
 import time
@@ -16,6 +17,8 @@ from std_srvs.srv import Trigger
 from rclpy.action import GoalResponse
 from robot_geometry.motion_guard import MotionGuard, sample_fresh
 from robot_mission.docking_controller import DockingController
+from robot_mission.delivery_mission import DeliveryMission
+from rclpy.parameter import Parameter
 from tf2_ros import TransformException
 
 
@@ -146,6 +149,73 @@ class MotionSafetyTests(unittest.TestCase):
         for stamp in (0., float('nan'), 12.):
             self.assertFalse(sample_fresh(10., stamp, 10., 10.))
 
+    def enable_directional(self):
+        self.node.directional = True
+        self.node.loaded = False
+        self.scan.angle_min = -math.pi
+        self.scan.angle_increment = 2*math.pi/359
+        self.node.on_phase(String(data='{"state":"NAV_TO_RACK", "rack_index":0}'))
+        self.node.on_scan(self.scan)
+
+    def test_directional_clear_forward(self):
+        self.enable_directional()
+        self.assertEqual(self.node.blocked_reason(), '')
+
+    def test_directional_missing_load_state(self):
+        self.enable_directional()
+        self.node.loaded = None
+        self.assertEqual(self.node.blocked_reason(), 'missing_load_state')
+
+    def test_directional_bad_scan_shape(self):
+        self.enable_directional()
+        self.scan.angle_increment = 0.
+        self.assertEqual(self.node.blocked_reason(), 'invalid_scan_geometry')
+
+    def test_directional_rear_shadow_stops(self):
+        self.enable_directional()
+        self.node.command.linear.x = -.02
+        self.scan.ranges[0] = math.nan
+        self.assertEqual(self.node.blocked_reason(), 'central_rear_scan_unknown')
+
+    def test_directional_obstacle_stops(self):
+        self.enable_directional()
+        self.scan.ranges[179] = .2
+        self.assertEqual(self.node.blocked_reason(), 'obstacle_in_braking_envelope')
+
+    def test_directional_reverse_policy_is_in_final_gate(self):
+        self.enable_directional()
+        self.node.command.linear.x = -.1
+        self.assertEqual(self.node.blocked_reason(), 'transit_reverse_speed_limit')
+
+    def test_repeated_phase_cannot_reset_reverse_budget(self):
+        self.enable_directional()
+        self.node.reverse_distance = .09
+        self.node.on_phase(String(data='{"state":"NAV_TO_RACK", "rack_index":0}'))
+        self.node.command.linear.x = -.02
+        self.assertEqual(self.node.blocked_reason(), 'transit_reverse_distance_limit')
+
+    def test_directional_braking_has_tighter_scan_age(self):
+        self.enable_directional()
+        received, stamp, valid = self.node.samples['laser']
+        self.node.samples['laser'] = (received-.3, stamp-.3, valid)
+        self.assertEqual(self.node.blocked_reason(), 'scan_too_old_for_braking')
+
+
+class MissionHeartbeatTests(unittest.TestCase):
+    def test_frozen_sim_clock_does_not_freeze_communication_heartbeat(self):
+        node = DeliveryMission()
+        self.addCleanup(node.destroy_node)
+        node.set_parameters([Parameter('use_sim_time', value=True)])
+        times = []
+        node._status_pub = Mock()
+        node._status_pub.publish.side_effect = lambda _: times.append(time.monotonic())
+        until = time.monotonic()+1.2
+        while time.monotonic() < until:
+            rclpy.spin_once(node, timeout_sec=.05)
+        self.assertEqual(node.get_clock().now().nanoseconds, 0)
+        self.assertGreaterEqual(len(times), 4)
+        self.assertLess(max(b-a for a,b in zip(times,times[1:])), .4)
+
 
 class DockSafetyTests(unittest.TestCase):
     def setUp(self):
@@ -223,10 +293,11 @@ if __name__ == '__main__':
     output = Path(sys.argv[1])
     output.mkdir(parents=True, exist_ok=True)
     profile = Path(__file__).resolve().parents[2]/'nav/robot_simulation/config/course_geometry.yaml'
-    rclpy.init(args=['--ros-args', '-p', f'geometry_file:={profile}'], domain_id=179)
+    # Separate from full Gazebo audits (179) and braking fixtures (181).
+    rclpy.init(args=['--ros-args', '-p', f'geometry_file:={profile}'], domain_id=184)
     try:
         suite = unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(cls)
-                                  for cls in (MotionSafetyTests, DockSafetyTests)])
+                                  for cls in (MotionSafetyTests, DockSafetyTests, MissionHeartbeatTests)])
         result = unittest.TextTestRunner(verbosity=2).run(suite)
         (output/'motion_safety.json').write_text(json.dumps({'passed': result.wasSuccessful(),
             'tests': result.testsRun, 'failures': len(result.failures), 'errors': len(result.errors)}, indent=2))

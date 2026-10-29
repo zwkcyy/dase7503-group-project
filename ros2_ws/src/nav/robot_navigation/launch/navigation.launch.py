@@ -87,7 +87,7 @@ def generate_launch_description():
             # Each name is remapped once, so the output does not chain into the input
             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_requested')],
         ),
-        Node(package='robot_geometry', executable='motion_guard', output='screen'),
+        Node(package='robot_geometry', executable='motion_guard', output='screen', parameters=[nav2_params]),
         Node(
             package='nav2_bt_navigator',
             executable='bt_navigator',

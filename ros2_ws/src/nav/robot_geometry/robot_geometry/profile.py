@@ -79,6 +79,10 @@ def nav_parameters(template, data, loaded=False):
         params['footprint_padding'] = padding
         params['inflation_layer']['inflation_radius'] = max(
             params['inflation_layer']['inflation_radius'], radius + 2 * padding + .03)
+    result['motion_guard'] = {'ros__parameters': {
+        'directional_guard_enabled': True,
+        'empty_bounds_m': [v/1000 for v in data['empty_bounds_mm']],
+        'loaded_bounds_m': [v/1000 for v in data['loaded_bounds_mm']]}}
     return result
 
 

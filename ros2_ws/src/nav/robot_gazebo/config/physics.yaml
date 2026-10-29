@@ -1,0 +1,33 @@
+# Simulation assumptions, not measured hardware calibration.
+schema: gazebo_course_physics_v1
+wall_height_mm: 500.0  # Course PDF page 2.
+rack_height_mm: 232.5  # Course PDF page 2; interpreted as total height.
+rack_deck_thickness_mm: 6.0  # Assumed, leaves only ~3.5 mm over the saved CAD pose.
+rack_mass_kg: 0.5  # Unmeasured; includes payload.
+rack_floor_friction: 0.8
+lift_contact_friction: 0.8
+lift_stroke_mm: 25.0
+lift_speed_mm_s: 15.0
+lift_kp: 10000.0
+lift_ki: 2000.0  # Remove gravity-induced steady-state error under 0.5--1 kg loads.
+lift_kd: 100.0
+lift_force_limit_n: 80.0  # Equivalent actuator, not a measured servo force curve.
+wheel_friction: 1.0
+wheel_roller_friction: 0.0  # Ideal free rollers, Gazebo official mecanum example.
+physics_step_s: 0.001
+real_time_factor: 1.0
+camera_width: 640
+camera_height: 480
+camera_hfov_rad: 1.4
+camera_hz: 10.0
+qr_size_mm: 70.0
+qr_centre_height_mm: 150.0
+start_qr_x_mm: 2400.0
+start_qr_y_mm: 1100.0
+end_qr_size_mm: 100.0
+end_qr_centre_height_mm: 180.0
+laser_x_mm: 145.0  # Proposed forward level mounting outside the saved CAD body.
+# Proposed scan plane clears the board (71.884 mm) below the upper plate
+# (104.883 mm). This is not a surveyed physical mounting coordinate.
+laser_z_mm: 90.0
+camera_upward_pitch_rad: 0.35  # Proposed bracket angle for the raised rack markers.

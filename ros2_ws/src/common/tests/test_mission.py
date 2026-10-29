@@ -14,6 +14,13 @@ State = mission.MissionState
 
 
 class MissionTests(unittest.TestCase):
+    def test_heartbeat_uses_steady_clock_without_changing_task_clock(self):
+        heartbeat = next(t for t in self.node.timers if t['callback'] == self.node._publish_status)
+        task = next(t for t in self.node.timers if t['callback'] == self.node._tick)
+        self.assertEqual(heartbeat['interval'], .2)
+        self.assertEqual(heartbeat['clock'].clock_type, mission.ClockType.STEADY_TIME)
+        self.assertNotIn('clock', task)
+
     def setUp(self):
         self.now = 100.0
         timer = patch.object(mission.time, "monotonic", lambda: self.now)
@@ -60,6 +67,15 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(self.node._state, State.COMPLETE)
         self.assertEqual(len(self.node._nav_client.calls), 8)
         self.assertEqual([m.data for m in self.node._lift_pub.messages], [1, 0] * 4)
+
+    def test_simulation_deadlines_follow_ros_clock(self):
+        self.node.parameters['use_sim_time'].value = True
+        self.node.now_ns = 12_000_000_000
+        self.assertEqual(self.node._now(), 12.)
+        self.now += 200.
+        self.assertEqual(self.node._now(), 12.)
+        self.node.now_ns += 2_000_000_000
+        self.assertEqual(self.node._now(), 14.)
 
     def test_docking_sequence_exits_before_counting_delivery(self):
         overrides = dict(Node.overrides, use_docking=True,
