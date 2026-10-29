@@ -153,6 +153,11 @@ def cad_robot(world, scene, profile, settings, assets):
         origin = joint.find('origin')
         xyz = np.array([float(v) for v in origin.get('xyz').split()]) + [0, 0, offset]
         rpy = [float(v) for v in origin.get('rpy', '0 0 0').split()]
+        if name == 'lidar_link':
+            # Move the supplied housing together with the proposed optical mount.
+            # Its CAD origin is at the top face; allow 1 mm optical clearance.
+            # This is an explicit bracket proposal, not a measured sensor origin.
+            xyz = np.array(profile['laser_xyz_mm'])/1000-[0, 0, .001]
         mass = float(source.find('inertial/mass').get('value'))
         is_wheel = 'wheel_link' in name
         is_tray = name == 'lift_tray_1'
@@ -335,6 +340,16 @@ def generate(directory, scene_file=None, physics_file=None):
         marker(link, 'qr', rack['qr'], [-depth/2-.0016, 0, rack_qr_height, 0, 0, math.pi], qsize, assets)
         contact_sensor(link, '/gazebo/contacts/rack_'+rack['label'])
     metadata = cad_robot(world, scene, profile, settings, assets)
+    # A front-mounted housing protrudes beyond the saved chassis. Include it in
+    # BOTH footprints, self filtering and the clearance needed before turning.
+    low_body, high_body = metadata['body_bounds_m']
+    bounds = profile['empty_bounds_mm']
+    profile['empty_bounds_mm'] = [min(bounds[0], low_body[0]*1000), min(bounds[1], low_body[1]*1000),
+                                  max(bounds[2], high_body[0]*1000), max(bounds[3], high_body[1]*1000)]
+    profile = course_profile(scene, profile)
+    metadata['proposed_lidar_mount'] = {'optical_origin_mm': profile['laser_xyz_mm'],
+        'housing_origin_mm': [profile['laser_xyz_mm'][0], profile['laser_xyz_mm'][1], profile['laser_xyz_mm'][2]-1.],
+        'basis': 'Translate supplied housing; optical plane assumed 1 mm above CAD top face; bracket unmeasured'}
     if metadata['saved_cad_to_underdeck_clearance_m'] <= 0:
         raise ValueError('Saved CAD tray does not fit below this rack deck; fix geometry instead of disabling collisions')
     metadata.update(engine='Gazebo Harmonic DART', camera_source='Gazebo Ogre2 rendered scene',
@@ -356,7 +371,10 @@ def generate(directory, scene_file=None, physics_file=None):
                 update_min_d=.01, update_min_a=.02)
     for key in ('alpha1', 'alpha2', 'alpha3', 'alpha4', 'alpha5'):
         amcl[key] = .005
-    params['controller_server']['ros__parameters']['general_goal_checker'].update(xy_goal_tolerance=.025, yaw_goal_tolerance=.04)
+    # These goals are safe staging points, not final lift/drop poses. Allow
+    # 40 mm here to avoid shim re-entry at the 25 mm boundary after AMCL updates.
+    # Docking still finishes at 8 mm / 0.018 rad; cargo audit limits are unchanged.
+    params['controller_server']['ros__parameters']['general_goal_checker'].update(xy_goal_tolerance=.04, yaw_goal_tolerance=.04)
     for name, data in [('scene.yaml', scene), ('physics.yaml', settings), ('geometry.yaml', profile),
                        ('mission.yaml', mission), ('field.yaml', map_config(scene)), ('nav2.yaml', params)]:
         (directory/name).write_text(yaml.safe_dump(data, sort_keys=False), encoding='utf-8')

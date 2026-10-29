@@ -104,6 +104,7 @@ class Node:
         self.parameters = {}
         self.declare_parameter('use_sim_time', False)
         self.publishers = {}
+        self.timers = []
         self.logger = Mock()
         self.now_ns = 10_000_000_000
 
@@ -131,7 +132,8 @@ class Node:
     def create_service(self, srv_type, topic, callback):
         return callback
 
-    def create_timer(self, interval, callback):
+    def create_timer(self, interval, callback, **options):
+        self.timers.append({'interval': interval, 'callback': callback, **options})
         return callback
 
     def get_logger(self):
@@ -167,6 +169,7 @@ def load_module(name, relative_path, with_ros=False):
     if with_ros:
         add("rclpy")
         add("rclpy.node", Node=Node)
+        add("rclpy.clock", Clock=SimpleNamespace, ClockType=SimpleNamespace(STEADY_TIME=1))
         add("rclpy.action", ActionClient=Client)
         add("rclpy.signals", SignalHandlerOptions=SimpleNamespace(NO=0))
         add("rclpy.executors", ExternalShutdownException=ExternalShutdownException)

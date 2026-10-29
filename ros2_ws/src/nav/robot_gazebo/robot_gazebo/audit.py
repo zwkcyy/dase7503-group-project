@@ -74,15 +74,34 @@ def audit(path):
     checks['cargo_within_planned_loaded_footprint'] = bool(loaded_rows) and max_excess <= 1e-5
     distance = sum(math.hypot(b['poses']['robot']['x']-a['poses']['robot']['x'],
                              b['poses']['robot']['y']-a['poses']['robot']['y']) for a, b in zip(rows, rows[1:]))
+    motion = {}
+    for a, b in zip(rows, rows[1:]):
+        if a['mission_state'] not in ('NAV_TO_RACK', 'NAV_TO_DESTINATION', 'EXIT_RACK', 'EXIT_DESTINATION'):
+            continue
+        key = f"{a['rack_index']}:{a['mission_state']}"
+        item = motion.setdefault(key, {'reverse_distance_m': 0., 'max_reverse_m_s': 0., 'translation_m': 0.})
+        dt = b['sim_seconds']-a['sim_seconds']
+        vx, vy, _ = a['encoder_velocity']
+        item['translation_m'] += math.hypot(vx, vy)*dt
+        if vx < -.005:
+            item['reverse_distance_m'] += -vx*dt
+            item['max_reverse_m_s'] = max(item['max_reverse_m_s'], -vx)
+    # Allow small deceleration tails when a phase changes. These checks audit
+    # encoder motion, not merely configured velocity limits.
+    checks['bounded_reverse_motion'] = bool(motion) and all(
+        v['reverse_distance_m'] <= (.51 if ':EXIT_' in k else .09) for k, v in motion.items())
+    checks['slow_rack_exits'] = all(v['max_reverse_m_s'] <= .09 for k, v in motion.items() if ':EXIT_' in k)
     report = {'passed': all(checks.values()), 'checks': checks, 'engine': 'Gazebo Harmonic 8 / DART',
               'task_simulation_seconds': duration, 'process_wall_seconds': observer['wall_seconds'],
               'travel_distance_m': distance, 'minimum_cargo_ground_clearance_m': minimum_lift,
               'maximum_tilt_rad': max_tilt, 'maximum_trace_gap_s': max(gaps, default=None),
               'maximum_loaded_footprint_excess_m': max_excess, 'placements': placements,
               'unexpected_contact_samples': summary['unexpected_contact_samples'],
+              'motion_by_phase': motion,
               'contact_samples_received': summary['contact_samples_received'], 'qr_codes': observer['codes'],
               'limitations': ['Unmeasured friction, masses, deck thickness, sensor and QR poses.',
                               'Component box collisions and ideal roller friction; equivalent prismatic lift.',
+                              'Front lidar retains narrow pillar/cargo shadows; arbitrary new objects in those shadows are not certified.',
                               'Simulation validation does not certify real hardware or course height compliance.']}
     (path/'gazebo_audit.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return report

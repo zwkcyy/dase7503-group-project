@@ -120,3 +120,28 @@ JSON/CSV and a visual HTML index are saved in `output/nav-validation-current/rob
 
 GitHub Actions runs only the offline logic and robustness checks on Ubuntu 24.04.
 ROS checks remain an explicit local workflow and are not claimed as CI coverage.
+
+## Front lidar / turning follow-up
+
+The motion safety suite uses isolated domain 184, separate from Gazebo mission
+audits (179) and physical lidar braking fixtures (181). It includes a frozen
+simulation clock test: mission heartbeats must continue on a steady wall timer.
+Offline checks cover reverse budgets, central rear unknown rays and combined
+translation/yaw momentum. The CAD suite, in a sourced ROS workspace, is:
+
+```bash
+python3 ros2_ws/src/common/tests/ros_lidar_geometry.py output/lidar-geometry-tests-new
+```
+
+Use new output directories. Physical checks are explicit:
+
+```bash
+bash scripts/nav.sh gazebo-visibility --output output/lidar-visibility-new
+bash scripts/nav.sh gazebo-lidar-check --output output/lidar-braking-new
+bash scripts/nav.sh gazebo-check --output output/lidar-mission-new
+```
+
+Braking fixtures use actual rendered scans and the normal command gate, not a
+direct simulator command bypass. Neither their passing results nor a complete
+mission proves detection of arbitrary objects hidden in narrow pillar/cargo
+shadows. See `docs/NAV_VI_前置雷达盲区与转向策略_20261029.md` for the limits.

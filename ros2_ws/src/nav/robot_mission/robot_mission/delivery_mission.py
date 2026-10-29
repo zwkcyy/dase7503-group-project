@@ -14,6 +14,7 @@ from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.clock import Clock, ClockType
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import Int8, String
 from std_srvs.srv import Trigger, SetBool
@@ -205,7 +206,11 @@ class DeliveryMission(Node):
         self._envelope_ready = False
         self._envelope_client = self.create_client(SetBool, '/nav/set_loaded')
         self._status_pub = self.create_publisher(String, '/mission/status', 10)
-        self._status_timer = self.create_timer(.5, self._publish_status)
+        # MotionGuard's communication timeout is wall-clock based. A simulation
+        # running below real time must not turn healthy heartbeats into outages.
+        # Task deadlines continue to use _now() and are not extended.
+        self._heartbeat_clock = Clock(clock_type=ClockType.STEADY_TIME)
+        self._status_timer = self.create_timer(.2, self._publish_status, clock=self._heartbeat_clock)
 
         self._nav_client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._dock_client = ActionClient(self, NavigateToPose, 'dock_to_pose') if self._docking else None

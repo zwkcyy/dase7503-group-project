@@ -72,6 +72,14 @@ case "$command" in
     load_ros
     exec ros2 run robot_gazebo verify_gazebo_faults "$@"
     ;;
+  gazebo-lidar-check)
+    load_ros
+    exec python3 -m robot_gazebo.lidar_checks "$@"
+    ;;
+  gazebo-visibility)
+    load_ros
+    exec python3 -m robot_gazebo.visibility "$@"
+    ;;
   demo|regression-demo|rehearsal|navigation|vision)
     load_ros; simulation_env
     case "$command" in
@@ -115,9 +123,10 @@ case "$command" in
     exec python3 "$repo/scripts/export_nav_evidence.py" "$@"
     ;;
   help|--help|-h)
-    echo 'Usage: bash scripts/nav.sh install|build|gazebo-install|gazebo|gazebo-check|gazebo-faults|demo|regression-demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
+    echo 'Usage: bash scripts/nav.sh install|build|gazebo-install|gazebo|gazebo-check|gazebo-faults|gazebo-lidar-check|gazebo-visibility|demo|regression-demo|rehearsal|navigation|vision|doctor|robot-doctor|robot|cad|hardware|ec|check|report [arguments]'
     echo 'gazebo: Gazebo Harmonic physics + rendered camera + real NAV/VI; gazebo-check --output PATH runs verification.'
     echo 'gazebo-faults --output PATH: isolated simulated watchdog, intentional contact and bridge-failure checks.'
+    echo 'gazebo-lidar-check --output PATH: visible obstacle braking and blind reverse refusal; gazebo-visibility --output PATH: CAD shadow analysis.'
     echo 'demo: course field + actual Nav2/QR; dynamic rack collisions, docking, four placements and synthetic lift.'
     echo 'regression-demo: original central-obstacle fixture with RViz; not the course field layout.'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'

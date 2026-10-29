@@ -126,7 +126,17 @@ controller_server:
       yaw_goal_tolerance: 0.10
 
     FollowPath:
-      plugin: "nav2_mppi_controller::MPPIController"
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.6
+      angular_disengage_threshold: 0.25
+      forward_sampling_distance: 0.3
+      rotate_to_heading_angular_vel: 1.2
+      max_angular_accel: 1.5
+      simulate_ahead_time: 1.5
+      rotate_to_goal_heading: true
+      rotate_to_heading_once: true
+      use_path_orientations: false
       motion_model: "Omni"
       # Reduced from the Nav2 defaults (2000 x 56) for the Raspberry Pi 5.
       # Horizon = time_steps * model_dt = 2.0 s (0.8 m at vx_max).
@@ -136,8 +146,10 @@ controller_server:
       iteration_count: 1
       # Velocity limits, same as the EC interface and velocity_smoother
       vx_max: 0.4
-      vx_min: -0.4
-      vy_max: 0.3
+      # A small final-pose correction avoids orbiting after millimetre overshoot.
+      # The final gate still caps cumulative transit reverse at 80 mm.
+      vx_min: -0.02
+      vy_max: 0.12
       wz_max: 1.5
       # Acceleration limits, same as velocity_smoother. TODO: measure on the robot
       ax_max: 1.0
@@ -159,12 +171,25 @@ controller_server:
       TrajectoryVisualizer:
         trajectory_step: 20
         time_step: 4
-      # PreferForwardCritic and PathAngleCritic are left out: the robot is
-      # holonomic and may drive sideways. TwirlingCritic suppresses needless
-      # rotation while translating.
+      # Retain Omni kinematics, but face transit paths for the front laser.
+      # The separate docking controller holds heading for rack entry and exit.
       critics: [
         "ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic",
-        "PathAlignCritic", "PathFollowCritic", "TwirlingCritic"]
+        "PathAlignCritic", "PathFollowCritic", "TwirlingCritic",
+        "PreferForwardCritic", "PathAngleCritic"]
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 8.0
+        threshold_to_consider: 0.2
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 8.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.3
+        max_angle_to_furthest: 0.5
+        mode: 0
       ConstraintCritic:
         enabled: true
         cost_power: 1
@@ -189,7 +214,9 @@ controller_server:
         cost_weight: 5.0
         threshold_to_consider: 1.0
       GoalAngleCritic:
-        enabled: true
+        # The shim aligns the final heading only AFTER reaching the safe
+        # approach point. Premature rotation forced unnecessary reverse motion.
+        enabled: false
         cost_power: 1
         cost_weight: 3.0
         threshold_to_consider: 0.5
@@ -211,6 +238,7 @@ controller_server:
       TwirlingCritic:
         enabled: true
         cost_power: 1
+        # The shim handles deliberate turns; suppress rotation while tracking.
         cost_weight: 10.0
 
 # Planner choice: SmacPlanner2D rather than NavFn.

@@ -14,6 +14,13 @@ State = mission.MissionState
 
 
 class MissionTests(unittest.TestCase):
+    def test_heartbeat_uses_steady_clock_without_changing_task_clock(self):
+        heartbeat = next(t for t in self.node.timers if t['callback'] == self.node._publish_status)
+        task = next(t for t in self.node.timers if t['callback'] == self.node._tick)
+        self.assertEqual(heartbeat['interval'], .2)
+        self.assertEqual(heartbeat['clock'].clock_type, mission.ClockType.STEADY_TIME)
+        self.assertNotIn('clock', task)
+
     def setUp(self):
         self.now = 100.0
         timer = patch.object(mission.time, "monotonic", lambda: self.now)

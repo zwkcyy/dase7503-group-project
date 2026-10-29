@@ -41,6 +41,8 @@ verification. The older `demo` command remains the planar regression simulator.
 bash scripts/nav.sh gazebo-check --output output/gazebo-my-run
 bash scripts/nav.sh gazebo-check --output output/gazebo-my-run-gui --gui
 bash scripts/nav.sh gazebo-faults --output output/gazebo-my-fault-check
+bash scripts/nav.sh gazebo-lidar-check --output output/gazebo-my-lidar-check
+bash scripts/nav.sh gazebo-visibility --output output/gazebo-my-visibility
 ```
 
 Output paths must be new. `gazebo-check` runs the full mission, collects actual
@@ -57,6 +59,14 @@ timeout, contact detection, zero output despite further commands, the emergency
 service call, and shutdown after the bridge process is terminated. Nonzero
 contacts in this fault run are expected; it is not a nominal delivery pass.
 
+`gazebo-lidar-check` keeps the real navigation smoother, motion guard, laser,
+self filter and physical wheel/lift model. It checks empty/loaded forward and
+reverse braking against real obstacles, plus refusal to reverse with the old
+70 mm scan plane's central rear shadow. Loaded fixtures lift rack A through
+contact. It does not intentionally collide, and never publishes to `/cmd_vel`
+or the Gazebo actuator command topic directly. `gazebo-visibility` measures CAD
+horizontal shadows and produces a comparison plot; it does not run a mission.
+
 Runs save under the chosen output path, or `~/.ros/nav_vi_runs/gazebo-*` for
 interactive startup:
 
@@ -69,7 +79,8 @@ interactive startup:
 | `gazebo_events.jsonl`, `gazebo_summary.json` | Lift / placement events and contact classifications |
 | `qr/`, `qr_scan.csv` | Confirming camera frames from the real decoder |
 | `observer.json`, `camera-*.png` | Independent verification observations and phase snapshots |
-| `gazebo_audit.json` | Fourteen full-mission checks and measured simulation results |
+| `gazebo_audit.json` | Full-mission checks, per-phase reverse distance/speed and measured results |
+| `lidar_observations.json` | Filtered scan examples, load-specific visibility counts, guard stop reasons |
 | `fault_checks.json` | Results from the separate intentional fault run |
 
 The recorder buffers transport samples before writing, independently of ROS
@@ -112,12 +123,47 @@ it on another machine instead of treating the SDF as a portable binary release.
   fixtures and rack-mounted QR boards always exist in the scene, with perspective
   and occlusion. Scan services only enable the actual decoder. Expected-marker
   preference chooses among decoded pixels and never supplies a fake result.
-- The Gazebo profile proposes a level laser at [145, 0, 70] mm and camera upward
+- The Gazebo profile proposes a level laser at [145, 0, 90] mm and camera upward
   pitch 0.35 rad; the original CAD laser frame is upside down. These proposed mounts,
   the IMU frame and camera intrinsics require physical implementation / calibration.
+  The original lidar housing mesh is translated with the proposed mount, with
+  its top face 1 mm below the optical plane as an explicit assumption. Its front
+  protrusion is included in both navigation footprints, self filtering, collision
+  geometry and the exit distance before turning. The source CAD is not rewritten.
 - Simulation-specific AMCL and goal tolerances are generated in each run. Hardware
-  defaults remain unchanged. Task / docking deadlines use ROS time in simulation;
+  AMCL and goal tolerances remain unchanged; the motion policy below is shared.
+  Task / docking deadlines use ROS time in simulation;
   hardware keeps monotonic deadlines and communication guards use wall time.
+  Mission heartbeats use a steady 0.2 s wall timer, so slow/frozen simulation time
+  cannot be mistaken for a dead mission process. The existing 0.75 s status timeout
+  is unchanged. Staging goals use 40 mm XY tolerance; final docking remains 8 mm.
+
+## Front lidar motion policy
+
+Normal transit retains Omni mechanics with forward-preferred MPPI translation. A
+rotation shim first faces the route and aligns the final heading only after
+reaching the safe approach point. MPPI permits only 0.02 m/s reverse corrections
+to avoid orbiting after small goal overshoots. The final gate additionally limits any reverse
+correction/recovery to 0.035 m/s and 80 mm per phase. Rack exits remain straight,
+commanding at most 0.08 m/s; the gate rejects speeds above 0.085 m/s or a
+cumulative reverse distance of 500 mm. The mission
+uses its geometry-derived shorter exit. Do not turn inside the rack opening.
+
+The final motion guard checks the empty/loaded swept braking rectangle using
+all axis endpoint combinations of requested and measured velocity, including
+new translation with residual yaw. Its assumptions are 0.35 s reaction time,
+0.5 m/s² linear braking and 1 rad/s² angular braking, with 12 mm extra margin.
+Scans older than 0.25 s cannot support this braking check. The complete central
+rear +/-12 degree sector must be valid before reversing; NaN is unknown, never
+free. This is a necessary visibility check, not proof of complete rear coverage.
+
+At 90 mm the scan clears the controller board but chassis posts and carried rack
+legs still cast narrow shadows. A single front 2D laser cannot guarantee detection
+of arbitrary new objects in those shadows or above/below its scan plane. These
+course runs assume controlled access: known fixed racks remain in the obstacle
+map and no new small objects enter occluded corridors during an exit. Rear/side
+sensing is needed to remove that operating restriction. Software filtering,
+known maps, and contact-triggered emergency stopping do not remove blind zones.
 
 ## Physical limits still requiring resolution
 

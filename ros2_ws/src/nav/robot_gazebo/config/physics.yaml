@@ -27,5 +27,7 @@ start_qr_y_mm: 1100.0
 end_qr_size_mm: 100.0
 end_qr_centre_height_mm: 180.0
 laser_x_mm: 145.0  # Proposed forward level mounting outside the saved CAD body.
-laser_z_mm: 70.0
+# Proposed scan plane clears the board (71.884 mm) below the upper plate
+# (104.883 mm). This is not a surveyed physical mounting coordinate.
+laser_z_mm: 90.0
 camera_upward_pitch_rad: 0.35  # Proposed bracket angle for the raised rack markers.

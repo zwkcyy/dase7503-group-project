@@ -130,7 +130,8 @@ class DockingController(Node):
                 return
             cmd.angular.z = max(-.18, min(.18, 1.5*error))
             if abs(error) < .04:
-                speed = max(-.13, min(.13, 1.6*forward))
+                # Front laser: bounded slow straight exits.
+                speed = max(-.08, min(.13, 1.6*forward))
                 side = max(-.04, min(.04, 1.6*lateral))
                 # Avoid entering the narrow opening before lateral alignment.
                 if forward > .24 and abs(lateral) > .012:
