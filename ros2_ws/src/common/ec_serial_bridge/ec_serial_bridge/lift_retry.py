@@ -22,18 +22,23 @@ class LiftCommandRetrier:
 
     ``max_retries`` counts the *resends* after the first frame:
     ``0`` restores the plain single-shot behaviour, ``-1`` means keep retrying
-    until an ack arrives.
+    until an ack arrives or ``max_age_s`` expires. The absolute age limit also
+    applies while the serial link is unavailable; callers must cancel on loss.
     """
 
-    def __init__(self, ack_timeout_s=0.2, max_retries=5):
+    def __init__(self, ack_timeout_s=0.2, max_retries=5, max_age_s=2.0):
         if not math.isfinite(ack_timeout_s) or ack_timeout_s <= 0:
             raise ValueError('ack_timeout_s must be finite and positive')
         if not isinstance(max_retries, int) or isinstance(max_retries, bool):
             raise ValueError('max_retries must be an int')
         if max_retries < -1:
             raise ValueError('max_retries must be -1 (unlimited) or >= 0')
+        if not math.isfinite(max_age_s) or max_age_s <= 0:
+            raise ValueError('max_age_s must be finite and positive')
         self.ack_timeout_s = float(ack_timeout_s)
         self.max_retries = max_retries
+        self.max_age_s = float(max_age_s)
+        self._expires = None
         self._direction = None
         self._deadline = None
         self._attempts = 0
@@ -59,6 +64,7 @@ class LiftCommandRetrier:
         """Record that a fresh 02 frame for ``direction`` has just been written."""
         self._direction = int(direction)
         self._deadline = now + self.ack_timeout_s
+        self._expires = now + self.max_age_s
         self._attempts = 1
 
     def settle(self, command_type, accepted, now):
@@ -72,12 +78,19 @@ class LiftCommandRetrier:
         """
         if not self.pending or command_type != 0x02:
             return ''
+        if now >= self._expires:
+            self.clear()
+            return 'expired'
         self.clear()
         return 'ok' if accepted else 'rejected'
 
     def plan(self, now):
         """Return ``(action, direction)``; ``action`` is ``None`` while waiting."""
-        if not self.pending or now < self._deadline:
+        if not self.pending:
+            return None, None
+        if now >= self._expires:
+            return ACTION_GIVE_UP, self._direction
+        if now < self._deadline:
             return None, None
         if self.max_retries >= 0 and self.resends >= self.max_retries:
             return ACTION_GIVE_UP, self._direction
@@ -93,4 +106,5 @@ class LiftCommandRetrier:
     def clear(self):
         self._direction = None
         self._deadline = None
+        self._expires = None
         self._attempts = 0

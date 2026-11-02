@@ -37,6 +37,7 @@ class MotionGuard(Node):
     def __init__(self):
         super().__init__('motion_guard')
         self.declare_parameter('directional_guard_enabled', False)
+        self.declare_parameter('allow_lateral_motion', True)
         self.declare_parameter('empty_bounds_m', [-.15, -.15, .15, .15])
         self.declare_parameter('loaded_bounds_m', [-.15, -.24, .15, .24])
         self.directional = self.get_parameter('directional_guard_enabled').value
@@ -139,6 +140,8 @@ class MotionGuard(Node):
         t = self.command
         if not all(math.isfinite(v) for v in (t.linear.x, t.linear.y, t.angular.z)):
             return 'nonfinite_command'
+        if not self.get_parameter('allow_lateral_motion').value and t.linear.y != 0.:
+            return 'lateral_motion_disabled'
         if self.directional:
             return self.directional_reason()
         return ''

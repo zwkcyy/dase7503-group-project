@@ -1,0 +1,34 @@
+# Fill the measured pickup/placement poses and actual QR contents before use.
+# Coordinates are base_link poses in the map frame: metres and radians.
+delivery_mission:
+  ros__parameters:
+    coordinates_confirmed: false
+    manage_load_envelope: true
+    use_docking: true
+    retreat_after_pickup: true
+    docking_distance_m: 0.42
+    placement_exit_distance_m: 0.42
+    rack_labels: [A, B, C, D]
+    rack_qr_codes: ['', '', '', '']
+    rack_x_m: [null, null, null, null]
+    rack_y_m: [null, null, null, null]
+    rack_yaw_rad: [null, null, null, null]
+    placement_x_m: [null, null, null, null]
+    placement_y_m: [null, null, null, null]
+    placement_yaw_rad: [null, null, null, null]
+    # Retained by the mission schema; fill a real destination reference pose.
+    destination_x_m: null
+    destination_y_m: null
+    destination_yaw_rad: null
+    qr_topic: /qr/data
+    qr_start_service: /qr/start_scan
+    qr_stop_service: /qr/stop_scan
+    prefer_expected_qr: true
+    lift_command_topic: /lift_cmd
+    lift_state_topic: /lift_state
+    qr_timeout_s: 15.0
+    start_timeout_s: 0.0
+    request_timeout_s: 2.0
+    lift_timeout_s: 8.0
+    navigation_timeout_s: 90.0
+    competition_time_s: 180.0

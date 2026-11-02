@@ -1,0 +1,22 @@
+# EC binary UART contract dated 2026-11-02. Physical acceptance remains pending.
+ec_adapter:
+  ros__parameters:
+    enable_motion: false
+    enable_lift: false
+    allow_lateral_motion: false
+    telemetry_max_age_s: 0.5
+    command_timeout_s: 0.25
+    max_linear_speed_m_s: 0.5
+    max_angular_speed_rad_s: 2.0
+    expected_imu_frame: base_link
+    imu_to_base_rpy_rad: [0.0, 0.0, 0.0]
+    imu_angular_variance: 0.0025
+    imu_acceleration_variance: 0.25
+    lift_up_text: 'lift up'
+    lift_down_text: 'lift down'
+    lift_stop_text: 'lift stop'
+    # Completion requires fresh baseline, matching F0 acceptance and 83 changing
+    # to the requested endpoint. This is EC-timed completion, not a limit switch.
+    lift_completion_mode: ec_state
+    # Fail before the delivery mission's default 8 s lift timeout.
+    lift_confirmation_timeout_s: 7.0

@@ -37,6 +37,10 @@ class DockingController(Node):
     def __init__(self):
         super().__init__('docking_controller')
         self.declare_parameter('geometry_file', '')
+        self.declare_parameter('drive_mode', 'omni')
+        self.drive_mode = self.get_parameter('drive_mode').value
+        if self.drive_mode not in ('omni', 'differential'):
+            raise ValueError('drive_mode must be omni or differential')
         self.profile = load_profile(self.get_parameter('geometry_file').value, True)
         self.buffer = Buffer()
         self.listener = TransformListener(self.buffer, self)
@@ -122,6 +126,23 @@ class DockingController(Node):
                 return
             self.settled = None
             cmd = Twist()
+            if self.drive_mode == 'differential':
+                # Nav2 must finish the approach on the insertion line. Without
+                # lateral actuation, an offset cannot be corrected between legs.
+                if abs(lateral) >= .008 or abs(error) >= .018:
+                    self.get_logger().error(
+                        f'Differential docking alignment refused: lateral={lateral:.3f} m, '
+                        f'heading={error:.3f} rad; realign outside the rack')
+                    self.finish('abort')
+                    return
+                # Follow only the current body x axis; do not pivot or strafe
+                # inside the rack. Any accumulated cross-track error aborts.
+                cmd.linear.x = max(-.06, min(.08, 1.2*forward))
+                if self.obstructed(cmd):
+                    self.pub.publish(Twist())
+                    return
+                self.pub.publish(cmd)
+                return
             # Align outside the rack, then hold heading during insertion/exit.
             # A large error close to the target is unsafe to correct in place.
             if abs(error) > .12 and abs(forward) < .24:

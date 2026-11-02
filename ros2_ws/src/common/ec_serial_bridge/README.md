@@ -9,7 +9,7 @@
 
 ## 边界
 
-本包只做编解码与转发，不做任何语义改造：
+本包负责编解码与转发，并按显式能力开关拒绝不支持的控制指令：
 
 - 不产生保活指令。EC 侧 500 ms 命令看门狗是安全链的一环，桥不替 NAV 续命。
   唯一例外是 EC 明确要求的 **02 回执重发**：只有回执逾期才发、收到 `F0` 即停、
@@ -33,27 +33,39 @@
 | `../tests/test_ec_serial_bridge.py` | 离线检查，覆盖切帧、编解码与 02 的 F0 重发状态机 | 仅标准库 |
 
 分层是为了让 `scripts/check_nav.sh offline` 能在没有 pyserial 的云端
-（CI 只装 `python3-opencv python3-numpy python3-yaml`）覆盖最容易出错的切帧逻辑，
-实车只需再验一次串口本身。
+（CI 只装 `python3-opencv python3-numpy python3-yaml`）覆盖切帧逻辑。
+编解码检查不能替代 ROS 节点联调、实板回执、升降完成和断线恢复检查。
+
+**NAV 接入修复与真机操作步骤：** [EC 真机联调步骤](../../../../docs/NAV_EC_真机联调_20261102.md)。
+
+**横向速度决策更新：** 当前真机统一采用 `drive_mode=differential`，MPPI 为 `DiffDrive`，
+不发横向速度。意外非零 vy 会被整条拒绝并发送零速度，而不是保留 vx/wz 后继续行驶。
+差速入架只允许已经对准的直进直退，偏差过大停车重对准。
+完整流程见 [完整联调手册](../../../../docs/NAV_EC_完整联调步骤_20261102.md)。
 
 ## 话题与服务
 
 | 方向 | 名称 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| 订阅 | `/ec/cmd_vel` | `geometry_msgs/Twist` | 转发为 01；`linear.y` 非零时 EC 会拒绝该帧 |
+| 订阅 | `/ec/cmd_vel` | `geometry_msgs/Twist` | 转发为 01；默认非零 `linear.y` 由桥拒绝并发送零速，匹配当前 EC 不支持横移的约束 |
 | 订阅 | `/ec/lift_cmd` | `std_msgs/String`（`lift_cmd_mode=text`）或 `UInt8` | 映射为 02 / 07 |
 | 发布 | `/ec/wheel/odom` | `nav_msgs/Odometry` | 81 → odom→base_link，时间戳取 Pi 时钟 |
 | 发布 | `/ec/imu/data_raw` | `sensor_msgs/Imu` | 82 原样转发，`orientation_covariance[0] = -1` |
 | 发布 | `/ec/lift_state` | `std_msgs/UInt8` | 83，行为由 `lift_state_mode` 决定 |
 | 发布 | `/ec_bridge/status` | `std_msgs/String` | JSON：链路、计数、CRC 错误、最后回执、时延 |
+| 发布 | `/ec_bridge/lift_event` | `std_msgs/String` | 本地 session/request_id、方向、ROS 时间戳及 submitted/sent/accepted/cancelled/failed 事件；不改变串口协议 |
+| 订阅 | `/ec_bridge/cancel_lift` | `std_msgs/Empty` | 取消待重发指令；不能停止已经开始的机械动作 |
 | 服务 | `/ec_bridge/set_arm` | `std_srvs/SetBool` | 手动 arming |
 | 服务 | `/ec_bridge/estop` | `std_srvs/SetBool` | 手动急停 |
 | 服务 | `/ec_bridge/stop` | `std_srvs/Trigger` | 05 |
 | 服务 | `/ec_bridge/lift_stop` | `std_srvs/Trigger` | 07；`enable_lift_stop=false` 时返回 `success=false`，不发帧 |
 | 服务 | `/ec_bridge/request_status` | `std_srvs/Trigger` | 06 |
 
-上述话题名与 `robot_bringup/launch/ec_bridge.launch.py` 里既有桥的 remap 目标一致，
-因此后续把 `start_bridge` 指向本包时，`ec_adapter` 不需要改。
+主启动入口同时更新 `ec_adapter`，默认加载 `ec_20261102.yaml` 的 `ec_state` 模式：
+先取得新鲜的原端点，再发一次命令；只有本次请求收到 F0 接受事件，并且 83 状态由原端点
+变到目标端点，才发布 NAV 的 `/lift_state` 完成值。旧 `ec_20261025.yaml` 保留人工确认模式。
+EC 的端点状态来自固件计时，不是物理到位传感器。主启动入口禁止 `target_mirror` 和 `uint8`
+搭配现有 String 适配器，以免产生假完成或消息类型不匹配。
 
 ## 参数
 
@@ -65,8 +77,9 @@
 | `telemetry_timeout_s` | `1.0` | 超过后停发上行 |
 | `lift_cmd_mode` | `text` | `text`/`uint8`，对应 B3 两个方案 |
 | `lift_ack_timeout_s` | `0.2` | 02 发出后等 `F0` 回执的窗口；超时即重发（EC 建议 200 ms） |
-| `lift_retry_max` | `5` | 02 重发次数上限；`-1` 不限，`0` 退回单发不重发 |
-| `enable_lift_stop` | `false` | 是否允许 `/ec_bridge/lift_stop` 发 07；EC 已取消 07，保持关闭 |
+| `lift_retry_max` | `5` | 02 重发次数上限；`-1` 只取消次数上限，仍受总有效期限制；`0` 单发 |
+| `lift_command_max_age_s` | `2.0` | 从首帧起计算的绝对有效期，过期不重发、不接受迟到回执 |
+| `enable_lift_stop` | `false` | 服务、文本和枚举三个入口统一禁止 07；仍取消待重发指令 |
 | `lift_state_mode` | `passthrough` | B2 已确认，生产固定 `passthrough`；另两个值仅诊断用 |
 | `imu_frame_id` | `base_link` | 82 是芯片轴，未做任何旋转 |
 | `pose_covariance_diagonal` | 全 0 | 未标定；0 表示未建模，不表示完美测量 |
@@ -81,7 +94,8 @@ python3 -m unittest discover -s ros2_ws/src/common/tests -p 'test_ec_serial_brid
 前导噪声、CRC 错与尾错后恢复、超长 length、半包等待、残片超时丢弃并从其后恢复完整帧、
 81/82 浮点往返与 NaN/Inf 拒绝、83 越界值拒绝、84 标志位、F0 接受/拒绝、长度不符拒绝，
 以及 02 的 F0 回执重发状态机（窗口内不重发、超时重发、回执清除、拒绝终止、重发上限、
-`0` 退回单发、`-1` 不限次数、非法参数拒绝）。共 36 项，`Ran 36 tests ... OK`。
+`0` 退回单发、`-1` 不限次数、非法参数拒绝）。原 PR #18 记录为 36 项通过。
+该记录属于原实现；本次接入修复未新增或运行测试，不能沿用为当前修改的测试结果。
 
 ## 83 的语义（B2 已由 EC 确认）
 
@@ -111,9 +125,11 @@ EC 负责人明确：
 后一次改到位：
 
 1. `/ec_bridge/lift_stop` 已加 `enable_lift_stop` 开关（默认 `false`）：关闭时服务返回
-   `success=false` 并说明原因，不写 07 帧。`protocol.encode_lift_stop()` 保留，供固件
+   `success=false` 并说明原因，不写 07 帧；文本/枚举入口使用同一个检查。
+   `/ec_adapter/stop_lift` 转发桥的服务结果，最多等待 1 s，不把“发布请求”当成成功。
+   `protocol.encode_lift_stop()` 保留，供固件
    恢复 07 时打开开关复用。
-2. `encode_stop()` 的注释须从"停底盘与升降"改为"只停底盘"（仅注释，字节不变）。
+2. `encode_stop()` 明确记录升降 PWM 行为取决于固件版本；字节不变，不能据此保证升降会停。
 
 在此之前，`6985c8a` 的 `communication.md` 仍写着 05 停两路、07 存在，本包按该版本
 文档实现；两处差异以固件新版本为准。
@@ -136,6 +152,8 @@ EC 负责人第二轮的完整口径：
 | 收到 `F0` 但 `result≠0`（EC 拒绝） | 立即清除，不重发，记 `rejected_command` 与 error 日志 |
 | 超时未收到回执 | 重发同一帧，重置窗口，计 `lift_retry`；重发次数上限 `lift_retry_max`（默认 5，`-1` 不限，`0` 退回单发） |
 | 次数耗尽仍无回执 | 计 `lift_ack_lost`，打 error 日志，停止重发（不无限刷帧，避免掩盖链路故障） |
+| 超过总有效期 | 同样停止重发并向适配器报告失败，即使 `lift_retry_max=-1` |
+| 串口断线/换会话、有效上行超时、停止/急停/解除使能、任务结束或取消 | 清除旧请求和待重发状态；恢复连接只请求状态，必须重新发起指令 |
 
 `/ec_bridge/status` 里可看到 `lift_ack_pending` 与 `lift_frames_sent`，实车调"到底有没有收到
 回执"直接看这两个字段。

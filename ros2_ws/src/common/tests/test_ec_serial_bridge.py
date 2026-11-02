@@ -271,15 +271,18 @@ class LiftRetryTests(unittest.TestCase):
         retrier.arm(1, now=0.)
         self.assertEqual(retrier.plan(.1), (lift_retry.ACTION_GIVE_UP, 1))
 
-    def test_unlimited_retries(self):
+    def test_unlimited_retry_count_still_expires(self):
         retrier = lift_retry.LiftCommandRetrier(ack_timeout_s=.1, max_retries=-1)
         retrier.arm(1, now=0.)
         now = 0.
-        for _ in range(50):
+        # -1 removes the count limit, not the absolute command lifetime.
+        for _ in range(19):
             now += .1
             self.assertEqual(retrier.plan(now), (lift_retry.ACTION_RESEND, 1))
             retrier.retried(now)
-        self.assertEqual(retrier.attempts, 51)
+        self.assertEqual(retrier.attempts, 20)
+        self.assertEqual(retrier.plan(2.0), (lift_retry.ACTION_GIVE_UP, 1))
+        self.assertEqual(retrier.plan(5.0), (lift_retry.ACTION_GIVE_UP, 1))
 
     def test_rejects_bad_configuration(self):
         for kwargs in ({'ack_timeout_s': 0.}, {'ack_timeout_s': float('nan')},

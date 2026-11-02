@@ -20,10 +20,12 @@ def generate_launch_description():
     vision = Path(get_package_share_directory('robot_vision'))
     defaults = {
         'geometry_file': str(model/'config/mechanical_cad_20261025.yaml'),
-        'adapter_file': str(share/'config/ec_20261025.yaml'),
+        'adapter_file': str(share/'config/ec_20261102.yaml'),
         'navigation': 'false', 'rviz': 'true', 'vision': 'true', 'show_results': 'false',
         'start_camera': 'false', 'image_topic': '/camera/image_raw',
         'start_bridge': 'false', 'bridge_root': '', 'port': '/dev/ttyUSB0',
+        'bridge_params_file': '', 'baudrate': '115200',
+        'drive_mode': 'differential', 'map_file': '',
         'enable_motion': 'false', 'enable_lift': 'false',
         'initial_x': '', 'initial_y': '', 'initial_yaw': '',
         'use_course_start': 'false',
@@ -50,6 +52,7 @@ def generate_launch_description():
         actions = [LogInfo(msg='CAD/EC commissioning: unloaded geometry only; no delivery mission is started.'),
             IncludeLaunchDescription(str(share/'launch/ec_bridge.launch.py'), launch_arguments={
                 key: args[key] for key in ('adapter_file', 'start_bridge', 'bridge_root', 'port',
+                                           'bridge_params_file', 'baudrate',
                                            'enable_motion', 'enable_lift')}.items()),
             Node(package='robot_bringup', executable='run_recorder', output='screen',
                  parameters=[{'output_dir': str(path), 'source': 'cad_ec_commissioning_unverified'}])]
@@ -57,6 +60,7 @@ def generate_launch_description():
             actions.append(IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={
                 **{key: args[key] for key in ('geometry_file', 'rviz', 'initial_x', 'initial_y', 'initial_yaw')},
                 'allow_unconfirmed_geometry': 'false', 'empty_only': 'true', 'initial_loaded': 'false',
+                 'drive_mode': args['drive_mode'], 'map_file': args['map_file'],
                 'ekf_params_file': str(share/'config/ekf_ec_10hz.yaml')}.items()))
         else:
             actions.append(IncludeLaunchDescription(str(share/'launch/cad_view.launch.py'), launch_arguments={

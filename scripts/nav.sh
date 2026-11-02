@@ -5,7 +5,7 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 workspace=${NAV_WORKSPACE:-"$HOME/dase7503-nav-work"}
 command=${1:-help}
 if (( $# )); then shift; fi
-packages=(logistics_robot_description robot_geometry robot_description robot_navigation robot_mission robot_vision robot_bringup robot_simulation robot_gazebo)
+packages=(logistics_robot_description robot_geometry robot_description robot_navigation robot_mission robot_vision ec_serial_bridge robot_bringup robot_simulation robot_gazebo)
 
 load_ros() {
   if [[ ! -f /opt/ros/jazzy/setup.bash ]]; then
@@ -34,7 +34,8 @@ case "$command" in
       ros-jazzy-robot-localization ros-jazzy-laser-filters ros-jazzy-xacro \
       ros-jazzy-cv-bridge python3-colcon-common-extensions python3-opencv \
       python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk python3-matplotlib fonts-noto-cjk \
-      python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui
+      python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui \
+      ros-jazzy-camera-ros ros-jazzy-rosbag2
     ;;
   build)
     load_ros
@@ -131,7 +132,7 @@ case "$command" in
     echo 'regression-demo: original central-obstacle fixture with RViz; not the course field layout.'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'
     echo 'cad: supplied CAD display. hardware: CAD + EC adapter; unloaded commissioning, no delivery mission.'
-    echo 'ec: isolate an existing EC Python bridge and adapt its ROS topics; no automatic arm or lift completion.'
+    echo 'ec: binary UART bridge + NAV adapter; explicit arming and EC feedback are required.'
     echo 'NAV_WORKSPACE selects the build workspace; NAV_DEMO_DOMAIN selects the isolated simulation domain.'
     ;;
   *) echo "Unknown command: $command" >&2; exit 2 ;;
