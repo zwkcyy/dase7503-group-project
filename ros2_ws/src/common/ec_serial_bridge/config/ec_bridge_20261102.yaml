@@ -1,0 +1,62 @@
+# EC binary UART bridge. Protocol source: EC docs/communication.md, firmware 6985c8a.
+# Nothing here has been verified against powered hardware; see the package README
+# for the list of open items that still need a measurement or an EC answer.
+ec_serial_bridge:
+  ros__parameters:
+    # ESP32-S3 Type-C CDC port is normally /dev/ttyACM0; a USB-UART adapter on the
+    # 4-pin header is normally /dev/ttyUSB0. Confirm on the Pi before a run.
+    port: /dev/ttyACM0
+    baudrate: 115200
+    read_timeout_s: 0.01
+    write_timeout_s: 0.05
+    reconnect_interval_s: 1.0
+    # Firmware abandons a partial frame after 100 ms of silence; match it here.
+    resync_timeout_s: 0.1
+    # Stop publishing when the uplink is silent so the NAV adapter reports stale
+    # data instead of consuming a repeated value.
+    telemetry_timeout_s: 1.0
+    # B3 open item: the adapter currently publishes std_msgs/String. 'uint8'
+    # accepts 0 = lower, 1 = raise, 2 = stop and would replace that interface.
+    # Superseded on 2026-11-02: the EC lead cancelled type 07 and narrowed 05 to
+    # "chassis stop only", because a servo cannot be interrupted mid-travel. So
+    # there is no byte that stops the lift; the '2' in uint8 mode and the
+    # lift stop text mapping both become dead. Keep 'text' until firmware lands
+    # a new commit and docs/communication.md is updated.
+    lift_cmd_mode: text
+    lift_up_text: 'lift up'
+    lift_down_text: 'lift down'
+    lift_stop_text: 'lift stop'
+    # EC lead, 2026-11-02: 02 is an event command, not a stream. Send one frame
+    # when the robot already stands at the target position, then wait for the EC's
+    # own F0 ack (command type 0x02, result 0). If no ack arrives within
+    # lift_ack_timeout_s the same frame is resent; lift_retry_max counts those
+    # resends (-1 = keep retrying, 0 = single shot, no resend). The EC rejects a
+    # resend that it has already refused, so a refusal ends the retries.
+    lift_ack_timeout_s: 0.2
+    lift_retry_max: 5
+    # EC cancelled type 07 on 2026-11-02: a servo cannot be interrupted
+    # mid-travel. /ec_bridge/lift_stop therefore answers success=false instead of
+    # writing a frame the firmware no longer honours. Flip this to true only if
+    # the firmware brings 07 back.
+    enable_lift_stop: false
+    # B2 answered by the EC lead on 2026-11-02: 83 goes out at 10 Hz for as long as
+    # the firmware runs. 0 while the lift sits at the bottom, 1 while it sits at the
+    # top, no extra fields. The EC times the 3000 ms travel itself and only flips the
+    # value once the move is done, so there is no separate "in progress" code: "done"
+    # means "the value changed to the one we asked for". During those 3 s the value
+    # still shows the old endpoint, which is normal and not a lost command.
+    #   passthrough    forward 83 unchanged -- the production setting
+    #   target_mirror  republish the last commanded direction; diagnostics only
+    #   off            publish nothing
+    lift_state_mode: passthrough
+    odom_frame_id: odom
+    base_frame_id: base_link
+    # Type 82 is raw chip axes. The bridge declares the configured frame without
+    # rotating anything; axis alignment must be settled with the adapter's
+    # imu_to_base_rpy_rad or a measured mounting orientation.
+    imu_frame_id: base_link
+    # No covariance is calibrated yet; zero means "unmodelled", not "perfect".
+    pose_covariance_diagonal: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    twist_covariance_diagonal: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    request_status_on_open: true
+    status_period_s: 1.0
