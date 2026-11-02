@@ -24,7 +24,7 @@ def generate_launch_description():
     defaults = {'start_bridge': 'false', 'bridge_root': '', 'port': '/dev/ttyUSB0',
                 'bridge_params_file': '', 'baudrate': '115200',
                 'lift_cmd_mode': 'text', 'lift_state_mode': 'passthrough',
-                'adapter_file': str(share/'config/ec_20261025.yaml'),
+                'adapter_file': str(share/'config/ec_20261102.yaml'),
                 'enable_motion': 'false', 'enable_lift': 'false'}
 
     def prepare(context):
@@ -34,13 +34,15 @@ def generate_launch_description():
             if args['bridge_root']:
                 actions.append(LogInfo(msg='ec_bridge: bridge_root is ignored; the bridge now '
                                            'ships as the ec_serial_bridge package.'))
-            # Empty bridge_params_file means "use the package default yaml".
-            parameters = [args['bridge_params_file']] if args['bridge_params_file'] else []
+            bridge_share = Path(get_package_share_directory('ec_serial_bridge'))
+            parameters = [args['bridge_params_file'] or str(bridge_share/'config/ec_bridge_20261102.yaml')]
             parameters.append({'port': args['port'], 'baudrate': args['baudrate'],
                                'lift_cmd_mode': args['lift_cmd_mode'],
                                'lift_state_mode': args['lift_state_mode']})
             actions.append(Node(package='ec_serial_bridge', executable='ec_serial_bridge',
                                 output='screen', parameters=parameters))
+        if args['lift_cmd_mode'] != 'text' or args['lift_state_mode'] != 'passthrough':
+            raise ValueError('The NAV adapter requires lift_cmd_mode=text and lift_state_mode=passthrough')
         actions.append(Node(package='robot_bringup', executable='ec_adapter', output='screen',
                             parameters=[args['adapter_file'], {
                                 key: args[key].lower() == 'true'

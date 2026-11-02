@@ -131,7 +131,7 @@ def encode_estop(engaged):
 
 
 def encode_stop():
-    """Type 05: stop chassis and lift PWM."""
+    """Type 05: stop chassis; whether it also cuts lift PWM depends on firmware."""
     return encode_packet(TYPE_STOP)
 
 

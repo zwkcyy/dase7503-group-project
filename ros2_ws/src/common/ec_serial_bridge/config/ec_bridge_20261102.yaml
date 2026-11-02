@@ -34,6 +34,9 @@ ec_serial_bridge:
     # resend that it has already refused, so a refusal ends the retries.
     lift_ack_timeout_s: 0.2
     lift_retry_max: 5
+    # Absolute command lifetime; even unlimited retries expire. Reconnection,
+    # stop/disarm/estop and mission cancellation discard the pending command.
+    lift_command_max_age_s: 2.0
     # EC cancelled type 07 on 2026-11-02: a servo cannot be interrupted
     # mid-travel. /ec_bridge/lift_stop therefore answers success=false instead of
     # writing a frame the firmware no longer honours. Flip this to true only if

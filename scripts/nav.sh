@@ -5,7 +5,7 @@ repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 workspace=${NAV_WORKSPACE:-"$HOME/dase7503-nav-work"}
 command=${1:-help}
 if (( $# )); then shift; fi
-packages=(logistics_robot_description robot_geometry robot_description robot_navigation robot_mission robot_vision robot_bringup robot_simulation robot_gazebo)
+packages=(logistics_robot_description robot_geometry robot_description robot_navigation robot_mission robot_vision ec_serial_bridge robot_bringup robot_simulation robot_gazebo)
 
 load_ros() {
   if [[ ! -f /opt/ros/jazzy/setup.bash ]]; then
@@ -131,7 +131,7 @@ case "$command" in
     echo 'regression-demo: original central-obstacle fixture with RViz; not the course field layout.'
     echo 'doctor: read-only readiness check on localhost domain 75; robot-doctor keeps your ROS environment.'
     echo 'cad: supplied CAD display. hardware: CAD + EC adapter; unloaded commissioning, no delivery mission.'
-    echo 'ec: isolate an existing EC Python bridge and adapt its ROS topics; no automatic arm or lift completion.'
+    echo 'ec: binary UART bridge + NAV adapter; explicit arming and EC feedback are required.'
     echo 'NAV_WORKSPACE selects the build workspace; NAV_DEMO_DOMAIN selects the isolated simulation domain.'
     ;;
   *) echo "Unknown command: $command" >&2; exit 2 ;;

@@ -18,6 +18,7 @@ ROS clock, because the firmware ``sample_ms`` is an uptime counter since boot.
 import json
 import math
 import time
+import uuid
 
 import rclpy
 from geometry_msgs.msg import Quaternion, Twist, Vector3
@@ -26,7 +27,7 @@ from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Imu
-from std_msgs.msg import String, UInt8
+from std_msgs.msg import Empty, String, UInt8
 from std_srvs.srv import SetBool, Trigger
 
 from . import protocol
@@ -65,6 +66,7 @@ class EcSerialBridge(Node):
             'lift_stop_text': 'lift stop',
             'lift_ack_timeout_s': .2,
             'lift_retry_max': 5,
+            'lift_command_max_age_s': 2.,
             'enable_lift_stop': False,
             'lift_state_mode': 'passthrough',
             'odom_frame_id': 'odom',
@@ -90,11 +92,19 @@ class EcSerialBridge(Node):
         self.malformed = 0
         self.last_rx = {}
         self.last_frame_time = None
+        self.last_byte_time = None
         self.opened_once = False
         self.last_ack = None
+        self.ec_status = None
         self.lift_direction = None
+        self.session_id = uuid.uuid4().hex
+        self.lift_request_id = 0
+        self.active_lift = None
+        self.serial_generation = 0
+        self.last_lift_cancel = ''
         self.lift_retrier = LiftCommandRetrier(self.settings['lift_ack_timeout_s'],
-                                               int(self.settings['lift_retry_max']))
+                                               int(self.settings['lift_retry_max']),
+                                               self.settings['lift_command_max_age_s'])
         self.counters = {'command': 0, 'rejected_command': 0, 'nonfinite_velocity': 0,
                          'unknown_text': 0, 'lift_state_published': 0,
                          'lift_retry': 0, 'lift_ack_lost': 0}
@@ -103,10 +113,14 @@ class EcSerialBridge(Node):
         self.imu_pub = self.create_publisher(Imu, '/ec/imu/data_raw', qos_profile_sensor_data)
         self.lift_state_pub = self.create_publisher(UInt8, '/ec/lift_state', 10)
         self.status_pub = self.create_publisher(String, '/ec_bridge/status', 10)
+        self.lift_event_pub = self.create_publisher(String, '/ec_bridge/lift_event', 10)
 
         self.create_subscription(Twist, '/ec/cmd_vel', self.on_velocity, 10)
         lift_type = UInt8 if self.settings['lift_cmd_mode'] == 'uint8' else String
         self.create_subscription(lift_type, '/ec/lift_cmd', self.on_lift_command, 10)
+        self.create_subscription(Empty, '/ec_bridge/cancel_lift',
+                                 lambda _: self.cancel_lift('NAV cancelled the pending lift'), 10)
+        self.create_subscription(String, '/mission/status', self.on_mission_status, 10)
         self.create_service(SetBool, '/ec_bridge/set_arm', self.on_set_arm)
         self.create_service(SetBool, '/ec_bridge/estop', self.on_estop)
         self.create_service(Trigger, '/ec_bridge/stop', self.on_stop)
@@ -126,7 +140,7 @@ class EcSerialBridge(Node):
         if self.settings['lift_state_mode'] not in ('passthrough', 'off', 'target_mirror'):
             raise ValueError("lift_state_mode must be 'passthrough', 'off' or 'target_mirror'")
         for key in ('read_timeout_s', 'write_timeout_s', 'reconnect_interval_s', 'resync_timeout_s',
-                    'telemetry_timeout_s', 'status_period_s'):
+                    'telemetry_timeout_s', 'status_period_s', 'lift_command_max_age_s'):
             value = self.settings[key]
             if not math.isfinite(value) or value <= 0:
                 raise ValueError(f'{key} must be finite and positive')
@@ -151,6 +165,7 @@ class EcSerialBridge(Node):
 
     def send(self, frame, label):
         if not self.transport.write(frame):
+            self.invalidate_link('serial write failed')
             self.counters['rejected_command'] += 1
             self.get_logger().warning(f'{label} not sent: {self.transport.last_error or "link closed"}',
                                       throttle_duration_sec=5.)
@@ -158,6 +173,36 @@ class EcSerialBridge(Node):
         self.tx_frames += 1
         self.counters['command'] += 1
         return True
+
+    def lift_event(self, event, reason=''):
+        if self.active_lift is not None:
+            self.lift_event_pub.publish(String(data=json.dumps({
+                **self.active_lift, 'event': event, 'reason': reason,
+                'stamp_ns': self.get_clock().now().nanoseconds})))
+
+    def cancel_lift(self, reason, event='cancelled'):
+        self.lift_event(event, reason)
+        self.lift_retrier.clear()
+        self.active_lift = None
+        self.lift_direction = None
+        self.last_lift_cancel = reason
+
+    def invalidate_link(self, reason):
+        self.cancel_lift(reason)
+        self.parser.reset()
+        self.last_rx.clear()
+        self.ec_status = None
+        self.last_frame_time = None
+        self.last_byte_time = None
+        self.opened_once = False
+
+    def on_mission_status(self, message):
+        try:
+            status = json.loads(message.data)
+        except (ValueError, TypeError):
+            return
+        if isinstance(status, dict) and status.get('state') in ('ERROR', 'COMPLETE', 'WAIT_START'):
+            self.cancel_lift('mission ' + status['state'])
 
     def on_velocity(self, message):
         values = (message.linear.x, message.linear.y, message.angular.z)
@@ -191,11 +236,20 @@ class EcSerialBridge(Node):
             self.get_logger().warning(f'unrecognised lift text {text!r} ignored', throttle_duration_sec=5.)
 
     def _send_lift_direction(self, direction):
+        self.cancel_lift('superseded by a new lift command')
+        self.lift_request_id += 1
+        self.active_lift = {'session': self.session_id, 'request_id': self.lift_request_id,
+                            'direction': direction}
+        self.lift_event('submitted')
+        if not self.link_ok(time.monotonic()) or not self.opened_once:
+            self.cancel_lift('no fresh serial session; issue a new command after reconnection', 'failed')
+            return
         if self.send(protocol.encode_lift(direction), 'lift'):
             self.lift_direction = direction
             # 02 is an event command: one frame, then wait for the EC's F0 ack and
             # resend only if it does not arrive within lift_ack_timeout_s.
             self.lift_retrier.arm(direction, time.monotonic())
+            self.lift_event('sent')
 
     def service_lift_retry(self, now):
         """Resend the outstanding 02 frame when its ack is overdue."""
@@ -207,7 +261,7 @@ class EcSerialBridge(Node):
             self.get_logger().error(
                 f'no F0 ack for lift {direction} after {self.lift_retrier.attempts} frames, '
                 'giving up; check the link and the firmware ack path')
-            self.lift_retrier.clear()
+            self.cancel_lift('lift acknowledgement retry/age limit reached', 'failed')
             return
         if self.send(protocol.encode_lift(direction), 'lift retry'):
             self.counters['lift_retry'] += 1
@@ -217,39 +271,41 @@ class EcSerialBridge(Node):
                 f'resent (attempt {self.lift_retrier.attempts})', throttle_duration_sec=2.)
 
     def _send_lift_stop(self):
-        self.send(protocol.encode_lift_stop(), 'lift stop')
+        # Cancellation stops future transmissions, not a lift already moving.
+        self.cancel_lift('lift stop requested')
+        if not self.settings['enable_lift_stop']:
+            message = 'lift stop disabled: EC cancelled type 07; pending retries cancelled only'
+            self.get_logger().warning(message)
+            return False, message
+        ok = self.send(protocol.encode_lift_stop(), 'lift stop')
+        return ok, ('lift stop frame sent; physical stop not confirmed' if ok
+                    else f'not sent: {self.transport.last_error}')
 
     def on_set_arm(self, request, response):
+        if not request.data:
+            self.cancel_lift('disarm requested')
         ok = self.send(protocol.encode_arm(request.data), 'arm')
         response.success = ok
         response.message = 'arm frame sent' if ok else f'not sent: {self.transport.last_error}'
         return response
 
     def on_estop(self, request, response):
+        if request.data:
+            self.cancel_lift('emergency stop requested')
         ok = self.send(protocol.encode_estop(request.data), 'estop')
         response.success = ok
         response.message = 'estop frame sent' if ok else f'not sent: {self.transport.last_error}'
         return response
 
     def on_stop(self, request, response):
+        self.cancel_lift('stop requested')
         ok = self.send(protocol.encode_stop(), 'stop')
         response.success = ok
         response.message = 'stop frame sent' if ok else f'not sent: {self.transport.last_error}'
         return response
 
     def on_lift_stop(self, request, response):
-        # EC lead, 2026-11-02: type 07 is cancelled because the servo cannot be
-        # interrupted mid-travel. The service stays declared so existing callers
-        # keep compiling, but it fails loudly instead of sending a frame the
-        # firmware no longer honours.
-        if not self.settings['enable_lift_stop']:
-            response.success = False
-            response.message = ('lift stop disabled: EC cancelled type 07 on 2026-11-02; '
-                                'the lift cannot be interrupted mid-travel')
-            return response
-        ok = self.send(protocol.encode_lift_stop(), 'lift stop')
-        response.success = ok
-        response.message = 'lift stop frame sent' if ok else f'not sent: {self.transport.last_error}'
+        response.success, response.message = self._send_lift_stop()
         return response
 
     def on_request_status(self, request, response):
@@ -262,28 +318,35 @@ class EcSerialBridge(Node):
 
     def poll(self):
         now = time.monotonic()
+        if not self.transport.is_open:
+            self.invalidate_link('serial connection closed')
         chunk = self.transport.poll(now)
+        if not self.transport.is_open:
+            self.invalidate_link('serial connection lost')
+            return
+        if self.transport.open_count != self.serial_generation:
+            self.invalidate_link('serial session changed; old commands discarded')
+            self.serial_generation = self.transport.open_count
+            self.opened_once = True
+            self.get_logger().info(f'serial link open on {self.settings["port"]}; no commands replayed')
+            if self.settings['request_status_on_open']:
+                if not self.send(protocol.encode_status_request(), 'startup status request'):
+                    return
         if chunk:
             for frame in self.parser.feed(chunk):
                 self.handle_frame(frame, now)
-            self.last_frame_time = now
-        elif self.parser.pending() and self.last_frame_time is not None:
-            if now - self.last_frame_time >= self.settings['resync_timeout_s']:
+            self.last_byte_time = now
+        elif self.parser.pending():
+            if now - self.last_byte_time >= self.settings['resync_timeout_s']:
                 for frame in self.parser.expire():
                     self.handle_frame(frame, now)
                 self.get_logger().warning(
                     f'abandoned a partial frame after {self.settings["resync_timeout_s"]:.2f} s',
                     throttle_duration_sec=5.)
-        if self.transport.is_open:
+        if not self.link_ok(now):
+            self.cancel_lift('valid serial telemetry timed out')
+        elif self.transport.is_open:
             self.service_lift_retry(now)
-        if self.transport.is_open and not self.opened_once:
-            self.opened_once = True
-            self.get_logger().info(f'serial link open on {self.settings["port"]}')
-            if self.settings['request_status_on_open']:
-                self.send(protocol.encode_status_request(), 'startup status request')
-        if self.opened_once and not self.transport.is_open:
-            self.opened_once = False
-            self.get_logger().warning(f'serial link closed: {self.transport.last_error}')
 
     def handle_frame(self, frame, now):
         decoded = protocol.decode(frame)
@@ -294,6 +357,7 @@ class EcSerialBridge(Node):
                 throttle_duration_sec=5.)
             return
         self.rx_frames += 1
+        self.last_frame_time = now
         kind, payload = decoded
         self.last_rx[kind] = now
         if kind == 'odometry':
@@ -303,7 +367,11 @@ class EcSerialBridge(Node):
         elif kind == 'lift_state':
             self.publish_lift_state(payload, now)
         elif kind == 'status':
+            self.ec_status = payload
+            if payload.has(protocol.FLAG_ESTOP) or not payload.has(protocol.FLAG_ARMED):
+                self.cancel_lift('EC reports emergency stop or disarmed state')
             if payload.fault != protocol.FAULT_NONE:
+                self.cancel_lift('EC reports fault ' + str(payload.fault), 'failed')
                 self.get_logger().warning(
                     f'EC fault {payload.fault} ({protocol.FAULT_NAMES.get(payload.fault, "unknown")})',
                     throttle_duration_sec=5.)
@@ -313,10 +381,14 @@ class EcSerialBridge(Node):
                 self.counters['rejected_command'] += 1
                 self.get_logger().warning(f'EC rejected 0x{payload.command_type:02X}',
                                           throttle_duration_sec=5.)
-            if self.lift_retrier.settle(payload.command_type, payload.accepted, now) == 'rejected':
+            result = self.lift_retrier.settle(payload.command_type, payload.accepted, now)
+            if result == 'ok':
+                self.lift_event('accepted')
+            elif result in ('rejected', 'expired'):
                 self.get_logger().error(
-                    f'lift command {self.lift_direction} refused by the EC; not resending',
+                    f'lift command {self.lift_direction} acknowledgement {result}; not resending',
                     throttle_duration_sec=5.)
+                self.cancel_lift('lift acknowledgement ' + result, 'failed')
 
     def fresh(self, kind, now):
         stamp = self.last_rx.get(kind)
@@ -375,6 +447,7 @@ class EcSerialBridge(Node):
 
     def publish_status(self):
         now = time.monotonic()
+        ec_status = self.ec_status if self.fresh('status', now) else None
         status = {
             'port': self.settings['port'],
             'open': self.transport.is_open,
@@ -389,12 +462,19 @@ class EcSerialBridge(Node):
             'discarded_bytes': self.parser.discarded_bytes,
             'pending_bytes': self.parser.pending(),
             'last_ack': self.last_ack,
+            'ec_armed': None if ec_status is None else ec_status.has(protocol.FLAG_ARMED),
+            'ec_estop': None if ec_status is None else ec_status.has(protocol.FLAG_ESTOP),
+            'ec_fault': None if ec_status is None else ec_status.fault,
             'last_error': self.transport.last_error,
             'lift_cmd_mode': self.settings['lift_cmd_mode'],
             'lift_state_mode': self.settings['lift_state_mode'],
             'lift_direction_sent': self.lift_direction,
             'lift_ack_pending': self.lift_retrier.pending,
             'lift_frames_sent': self.lift_retrier.attempts,
+            'session': self.session_id,
+            'last_lift_cancel': self.last_lift_cancel,
+            'enable_lift_stop': self.settings['enable_lift_stop'],
+            'lift_command_max_age_s': self.settings['lift_command_max_age_s'],
             'counters': dict(self.counters),
             'odometry_age_s': None if self.last_rx.get('odometry') is None
             else round(now - self.last_rx['odometry'], 3),

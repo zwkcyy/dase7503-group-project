@@ -1,4 +1,4 @@
-"""Adapt the documented EC ROS bridge without inventing lift completion."""
+"""Adapt EC telemetry, with explicit legacy/manual and binary-feedback modes."""
 
 import copy
 import json
@@ -11,11 +11,13 @@ from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.executors import ExternalShutdownException
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
+from rclpy.task import Future
 from sensor_msgs.msg import Imu
-from std_msgs.msg import Int8, String, UInt8
+from std_msgs.msg import Empty, Int8, String, UInt8
 from std_srvs.srv import SetBool, Trigger
 
 
@@ -50,7 +52,8 @@ class EcAdapter(Node):
                     'expected_imu_frame': 'base_link', 'imu_to_base_rpy_rad': [0., 0., 0.],
                     'imu_angular_variance': .0025, 'imu_acceleration_variance': .25,
                     'lift_up_text': 'lift up', 'lift_down_text': 'lift down',
-                    'lift_stop_text': 'lift stop', 'lift_confirmation_timeout_s': 60.}
+                    'lift_stop_text': 'lift stop', 'lift_confirmation_timeout_s': 60.,
+                    'lift_completion_mode': 'operator'}
         for key, value in defaults.items():
             self.declare_parameter(key, value, ParameterDescriptor(read_only=True))
         self.settings = {key: self.get_parameter(key).value for key in defaults}
@@ -61,6 +64,8 @@ class EcAdapter(Node):
                 raise ValueError(f'{key} must be finite and positive')
         if self.settings['command_timeout_s'] >= .5:
             raise ValueError('Command timeout must precede the documented 500 ms EC watchdog')
+        if self.settings['lift_completion_mode'] not in ('operator', 'ec_state'):
+            raise ValueError('lift_completion_mode must be operator or ec_state')
         for key in ('expected_imu_frame', 'lift_up_text', 'lift_down_text', 'lift_stop_text'):
             if not self.settings[key].strip() or '\n' in self.settings[key] or '\r' in self.settings[key]:
                 raise ValueError(f'{key} must be one nonempty line')
@@ -75,24 +80,32 @@ class EcAdapter(Node):
         self.pending = None
         self.request_id = 0
         self.last_lift_result = 'No command issued'
+        self.stop_requests = []
+        self.service_group = ReentrantCallbackGroup()
         self.odom_pub = self.create_publisher(Odometry, '/odom/wheel', 10)
         self.imu_pub = self.create_publisher(Imu, '/imu/data_raw', 10)
         self.velocity_pub = self.create_publisher(Twist, '/ec/cmd_vel', 10)
         self.lift_pub = self.create_publisher(String, '/ec/lift_cmd', 10)
+        self.cancel_lift_pub = self.create_publisher(Empty, '/ec_bridge/cancel_lift', 10)
         self.completion_pub = self.create_publisher(Int8, '/lift_state', 10)
         self.status_pub = self.create_publisher(String, '/ec_adapter/status', 10)
         self.create_subscription(Odometry, '/ec/wheel/odom', self.odometry, qos_profile_sensor_data)
         self.create_subscription(Imu, '/ec/imu/data_raw', self.imu, qos_profile_sensor_data)
         self.create_subscription(UInt8, '/ec/lift_state', self.lift_target, 10)
+        self.create_subscription(String, '/ec_bridge/lift_event', self.lift_event, 10)
         self.create_subscription(Twist, '/cmd_vel', self.velocity, 10)
         self.create_subscription(Int8, '/lift_cmd', self.lift_command, 10)
         self.create_subscription(String, '/mission/status', self.mission_status, 10)
         self.create_service(SetBool, '/ec_adapter/confirm_lift', self.confirm_lift)
-        self.create_service(Trigger, '/ec_adapter/stop_lift', self.stop_lift)
+        self.lift_stop_client = self.create_client(Trigger, '/ec_bridge/lift_stop',
+                                                   callback_group=self.service_group)
+        self.create_service(Trigger, '/ec_adapter/stop_lift', self.stop_lift,
+                            callback_group=self.service_group)
         self.create_timer(.05, self.tick)
         self.create_timer(.5, self.publish_status)
         self.get_logger().warning(
-            'EC return-form adapter: physical calibration unverified; lift targets are not completion. '
+            f'EC adapter: lift_completion_mode={self.settings["lift_completion_mode"]}; '
+            'EC state is a firmware-timed endpoint, not a measured arrival sensor. '
             'Motion/lift are disabled by default. No arm or keepalive commands are generated.')
 
     def reject(self, key, reason):
@@ -193,13 +206,76 @@ class EcAdapter(Node):
         self.moving = any((output.linear.x, output.linear.y, output.angular.z))
 
     def lift_target(self, message):
+        now = time.monotonic()
+        if self.settings['lift_completion_mode'] == 'ec_state':
+            if int(message.data) not in (0, 1):
+                self.cancel_pending_lift('Invalid EC lift state')
+                self.target_received = None
+                return
+            if (self.pending is not None and self.target_received is not None
+                    and now-self.target_received > self.settings['telemetry_max_age_s']):
+                self.cancel_pending_lift('EC lift feedback interrupted; new command required')
         self.target = int(message.data)
-        self.target_received = time.monotonic()
+        self.target_received = now
         self.target_sequence += 1
-        # UInt8 0/1 are commanded targets, 2 means no target. None proves arrival.
+        self.complete_from_ec(now)
+
+    def cancel_pending_lift(self, reason, notify_bridge=True):
+        self.pending = None
+        self.last_lift_result = reason
+        self.completion_pub.publish(Int8(data=-1))
+        if notify_bridge:
+            self.cancel_lift_pub.publish(Empty())
+
+    def lift_event(self, message):
+        if self.settings['lift_completion_mode'] != 'ec_state' or self.pending is None:
+            return
+        try:
+            event = json.loads(message.data)
+            if not isinstance(event, dict):
+                return
+            stamp = int(event['stamp_ns'])
+            key = (str(event['session']), int(event['request_id']))
+            direction = int(event['direction'])
+        except (ValueError, TypeError, KeyError):
+            return
+        pending = self.pending
+        if (stamp < pending['stamp_ns'] or stamp > self.get_clock().now().nanoseconds + 100_000_000
+                or direction != pending['target']):
+            return
+        if event.get('event') == 'submitted':
+            if pending['bridge_key'] is not None:
+                self.cancel_pending_lift('Another bridge lift command superseded this request')
+                return
+            pending['bridge_key'] = key
+        elif key == pending['bridge_key']:
+            if event.get('event') == 'accepted':
+                pending['acknowledged'] = True
+                self.complete_from_ec(time.monotonic())
+            elif event.get('event') in ('cancelled', 'failed'):
+                self.cancel_pending_lift('EC bridge: ' + str(event.get('reason', 'cancelled')),
+                                         notify_bridge=False)
+
+    def complete_from_ec(self, now):
+        pending = self.pending
+        if self.settings['lift_completion_mode'] != 'ec_state' or pending is None:
+            return
+        if now-pending['sent'] >= self.settings['lift_confirmation_timeout_s']:
+            self.cancel_pending_lift('EC lift completion timed out')
+            return
+        if (pending['acknowledged'] and pending['baseline'] != pending['target']
+                and self.target_sequence > pending['sequence'] and self.target == pending['target']
+                and self.target_received is not None
+                and now-self.target_received <= self.settings['telemetry_max_age_s']):
+            self.completion_pub.publish(Int8(data=pending['target']))
+            self.last_lift_result = (f"Command {pending['id']} completed by F0 acceptance and EC state transition; "
+                                     'firmware-timed endpoint, not a physical arrival sensor')
+            self.pending = None
+            self.publish_status()
 
     def lift_command(self, message):
         value = int(message.data)
+        now = time.monotonic()
         if not self.settings['enable_lift']:
             self.last_lift_result = 'Lift command rejected: enable_lift is false'
             return
@@ -209,14 +285,30 @@ class EcAdapter(Node):
         if self.lift_pub.get_subscription_count() != 1:
             self.last_lift_result = 'Lift command rejected: expected one EC String receiver'
             return
+        if self.settings['lift_completion_mode'] == 'ec_state':
+            if (self.target_received is None or self.target not in (0, 1)
+                    or now-self.target_received > self.settings['telemetry_max_age_s']):
+                self.last_lift_result = 'Lift rejected: wait for fresh EC endpoint feedback before commanding'
+                return
+            if self.target == value:
+                self.last_lift_result = 'Lift rejected: EC already reports this endpoint; no new transition to confirm'
+                return
         self.request_id += 1
         self.pending = {'id': self.request_id, 'target': value,
-                        'sent': time.monotonic(), 'sequence': self.target_sequence}
+                        'sent': now, 'sequence': self.target_sequence,
+                        'stamp_ns': self.get_clock().now().nanoseconds,
+                        'baseline': self.target, 'bridge_key': None, 'acknowledged': False}
         self.completion_pub.publish(Int8(data=-1))
         self.lift_pub.publish(String(data=self.settings['lift_up_text' if value else 'lift_down_text']))
-        self.last_lift_result = 'Command sent; waiting for fresh target telemetry and physical operator confirmation'
+        self.last_lift_result = ('Command sent; waiting for F0 acceptance and EC endpoint state transition'
+                                if self.settings['lift_completion_mode'] == 'ec_state' else
+                                'Command sent; waiting for fresh telemetry and physical operator confirmation')
 
     def confirm_lift(self, request, response):
+        if self.settings['lift_completion_mode'] != 'operator':
+            response.success = False
+            response.message = 'Manual completion is disabled in ec_state mode; waiting for EC acknowledgement and transition'
+            return response
         pending = self.pending
         now = time.monotonic()
         expected = int(request.data)
@@ -237,16 +329,25 @@ class EcAdapter(Node):
         self.publish_status()
         return response
 
-    def stop_lift(self, request, response):
-        if not self.settings['enable_lift'] or self.lift_pub.get_subscription_count() != 1:
-            response.message = 'Lift disabled or EC receiver unavailable'
+    async def stop_lift(self, request, response):
+        self.cancel_pending_lift('Lift stop requested; completion invalidated')
+        if not self.lift_stop_client.service_is_ready():
+            response.success = False
+            response.message = 'Bridge stop service unavailable; retry cancellation requested, physical stop unconfirmed'
             return response
-        # Only an explicit service request sends stop; it may release servo holding.
-        self.lift_pub.publish(String(data=self.settings['lift_stop_text']))
-        self.pending = None
-        self.completion_pub.publish(Int8(data=-1))
-        response.success = True
-        response.message = 'Stop command sent; physical holding behaviour remains unverified'
+        # Relay the bridge's capability/result; publishing text is not success.
+        try:
+            remote = self.lift_stop_client.call_async(Trigger.Request())
+        except Exception as error:
+            response.success = False
+            response.message = f'Bridge stop request failed: {error}; physical stop unconfirmed'
+            return response
+        finished = Future()
+        self.stop_requests.append((remote, finished, time.monotonic()+1.))
+        result = await finished
+        response.success = result is not None and result.success
+        response.message = (result.message if result is not None else
+                            'Bridge stop response timed out/failed; physical stop unconfirmed')
         self.last_lift_result = response.message
         return response
 
@@ -256,28 +357,49 @@ class EcAdapter(Node):
         except (ValueError, TypeError):
             return
         if isinstance(status, dict) and status.get('state') in ('ERROR', 'COMPLETE', 'WAIT_START'):
-            self.pending = None
+            if self.pending is not None:
+                self.cancel_pending_lift('Mission ' + status['state'])
 
     def tick(self):
         now = time.monotonic()
+        for remote, finished, deadline in list(self.stop_requests):
+            if remote.done() or now >= deadline:
+                result = None
+                if remote.done():
+                    try:
+                        result = remote.result()
+                    except Exception as error:
+                        self.get_logger().warning(f'Lift stop service failed: {error}')
+                else:
+                    self.lift_stop_client.remove_pending_request(remote)
+                    remote.cancel()
+                finished.set_result(result)
+                self.stop_requests.remove((remote, finished, deadline))
         if self.moving and (self.last_command is None
                 or now-self.last_command >= self.settings['command_timeout_s'] or not self.telemetry_ready()):
             # One zero then silence; do not keep the EC watchdog alive indefinitely.
             self.send_zero()
         if self.pending is not None and now-self.pending['sent'] >= self.settings['lift_confirmation_timeout_s']:
-            self.pending = None
-            self.last_lift_result = 'Operator confirmation timed out; no completion published'
+            self.cancel_pending_lift('Lift confirmation timed out; no completion published')
+        elif (self.pending is not None and self.settings['lift_completion_mode'] == 'ec_state'
+              and (self.target_received is None
+                   or now-self.target_received > self.settings['telemetry_max_age_s'])):
+            self.cancel_pending_lift('EC lift feedback timed out; new command required')
 
     def publish_status(self):
         now = time.monotonic()
-        state = {'source_contract': 'EC form 2026-10-25 / 40d3041',
+        ec_state = self.settings['lift_completion_mode'] == 'ec_state'
+        state = {'source_contract': ('EC binary UART / 2026-11-02' if ec_state else 'EC form 2026-10-25 / 40d3041'),
                  'physical_acceptance': False, 'telemetry_ready': self.telemetry_ready(),
                  'input_age_s': {key: None if value is None else round(now-value, 3)
                                  for key, value in self.last_data.items()},
                  'issues': self.issues, 'motion_enabled': self.settings['enable_motion'],
                  'lift_enabled': self.settings['enable_lift'], 'reported_lift_target': self.target,
                  'pending_lift_id': self.pending['id'] if self.pending else None,
-                 'lift_completion_source': 'operator_only', 'lift_result': self.last_lift_result,
+                 'lift_completion_source': 'ec_timed_state_transition' if ec_state else 'operator_only',
+                 'lift_feedback_age_s': None if self.target_received is None else round(now-self.target_received, 3),
+                 'lift_acknowledged': self.pending is not None and self.pending.get('acknowledged', False),
+                 'lift_result': self.last_lift_result,
                  'imu_axes': 'EC declared frame plus configured rotation; physical sign unverified'}
         self.status_pub.publish(String(data=json.dumps(state)))
 
