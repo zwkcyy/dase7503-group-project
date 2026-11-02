@@ -14,12 +14,15 @@ from robot_bringup.launch_support import after_preflight, prepare_run_directory
 
 
 def generate_launch_description():
+    bringup = Path(get_package_share_directory('robot_bringup'))
     nav = Path(get_package_share_directory('robot_navigation'))
     vision = Path(get_package_share_directory('robot_vision'))
     defaults = {'geometry_file': str(Path(get_package_share_directory('robot_description'))/'config/mechanical.yaml'),
                 'mission_file': str(Path(get_package_share_directory('robot_mission'))/'config/mission_params.yaml'),
                 'start_camera': 'false', 'show_results': 'false', 'rviz': 'false',
-                'image_topic': '/camera/image_raw', 'initial_loaded': 'true',
+                'image_topic': '/camera/image_raw', 'initial_loaded': 'false',
+                'drive_mode': 'differential', 'map_file': '',
+                'ekf_params_file': str(bringup/'config/ekf_ec_10hz.yaml'),
                 'output_dir': str(Path.home()/'.ros/nav_vi_runs'/('robot-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]))}
 
     def prepare(context):
@@ -38,7 +41,8 @@ def generate_launch_description():
         mission = Node(package='robot_mission', executable='delivery_mission', output='screen', parameters=[args['mission_file']])
         actions = [
             IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={key: args[key] for key in
-                ('geometry_file', 'initial_loaded', 'initial_x', 'initial_y', 'initial_yaw', 'rviz')}.items()),
+                ('geometry_file', 'initial_loaded', 'initial_x', 'initial_y', 'initial_yaw', 'rviz',
+                 'drive_mode', 'map_file', 'ekf_params_file')}.items()),
             IncludeLaunchDescription(str(vision/'launch/vision_bringup.launch.py'), launch_arguments={
                 **{key: args[key] for key in ('start_camera', 'show_results', 'image_topic')},
                 'evidence_dir': str(path/'qr'), 'evidence_source': 'external_camera_unverified',
@@ -48,7 +52,8 @@ def generate_launch_description():
             after_preflight(check, mission), check]
         if params.get('use_docking'):
             actions.insert(0, Node(package='robot_mission', executable='docking_controller', output='screen',
-                                   parameters=[{'geometry_file': args['geometry_file']}]))
+                                   parameters=[{'geometry_file': args['geometry_file'],
+                                                'drive_mode': args['drive_mode']}]))
         return actions
 
     return LaunchDescription([*[DeclareLaunchArgument(key, default_value=value) for key, value in defaults.items()],

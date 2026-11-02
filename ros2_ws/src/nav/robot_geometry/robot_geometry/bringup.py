@@ -20,6 +20,7 @@ def generate_launch_description():
     defaults = {'geometry_file': str(description / 'config/mechanical.yaml'),
                 'allow_unconfirmed_geometry': 'false', 'initial_loaded': 'true',
                 'empty_only': 'false',
+                'drive_mode': 'omni',
                 'ekf_params_file': str(nav / 'config/ekf.yaml'),
                 'params_file': str(nav / 'config/nav2_params.yaml'),
                 'map_file': '',
@@ -34,6 +35,20 @@ def generate_launch_description():
         profile = load_profile(args['geometry_file'], boolean('allow_unconfirmed_geometry'), boolean('empty_only'))
         with open(args['params_file'], encoding='utf-8') as stream:
             params = nav_parameters(yaml.safe_load(stream), profile, boolean('initial_loaded'))
+        if args['drive_mode'] not in ('omni', 'differential'):
+            raise ValueError('drive_mode must be omni or differential')
+        if args['drive_mode'] == 'differential':
+            # The EC binary firmware currently rejects lateral commands. Match
+            # the planner/controller model instead of clipping an Omni path.
+            params['amcl']['ros__parameters']['robot_model_type'] = 'nav2_amcl::DifferentialMotionModel'
+            controller = params['controller_server']['ros__parameters']
+            controller['FollowPath'].update(motion_model='DiffDrive', vy_max=0.0,
+                                           vx_max=0.15, vx_min=-0.02, wz_max=0.4,
+                                           rotate_to_heading_angular_vel=0.4, visualize=False)
+            controller['general_goal_checker'].update(xy_goal_tolerance=0.008, yaw_goal_tolerance=0.018)
+            smoother = params['velocity_smoother']['ros__parameters']
+            smoother.update(max_velocity=[0.15, 0.0, 0.4], min_velocity=[-0.08, 0.0, -0.4])
+            params['motion_guard']['ros__parameters']['allow_lateral_motion'] = False
         if args['map_file']:
             map_file = Path(args['map_file']).expanduser().resolve(strict=True)
             params['map_server']['ros__parameters']['yaml_filename'] = str(map_file)

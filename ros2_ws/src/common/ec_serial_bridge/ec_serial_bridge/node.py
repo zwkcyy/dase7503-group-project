@@ -61,6 +61,7 @@ class EcSerialBridge(Node):
             'resync_timeout_s': .1,
             'telemetry_timeout_s': 1.,
             'lift_cmd_mode': 'text',
+            'allow_lateral_motion': False,
             'lift_up_text': 'lift up',
             'lift_down_text': 'lift down',
             'lift_stop_text': 'lift stop',
@@ -106,6 +107,7 @@ class EcSerialBridge(Node):
                                                int(self.settings['lift_retry_max']),
                                                self.settings['lift_command_max_age_s'])
         self.counters = {'command': 0, 'rejected_command': 0, 'nonfinite_velocity': 0,
+                         'lateral_command_rejected': 0,
                          'unknown_text': 0, 'lift_state_published': 0,
                          'lift_retry': 0, 'lift_ack_lost': 0}
 
@@ -206,6 +208,12 @@ class EcSerialBridge(Node):
 
     def on_velocity(self, message):
         values = (message.linear.x, message.linear.y, message.angular.z)
+        if not self.settings['allow_lateral_motion'] and values[1] != 0.:
+            self.counters['lateral_command_rejected'] += 1
+            self.get_logger().error('Nonzero vy rejected; sending zero velocity. Check NAV drive_mode.',
+                                    throttle_duration_sec=2.)
+            self.send(protocol.encode_velocity(0., 0., 0.), 'lateral-command stop')
+            return
         if not all(math.isfinite(value) for value in values):
             # The firmware disarms on a non-finite command; keep that behaviour visible.
             self.counters['nonfinite_velocity'] += 1
@@ -474,6 +482,7 @@ class EcSerialBridge(Node):
             'session': self.session_id,
             'last_lift_cancel': self.last_lift_cancel,
             'enable_lift_stop': self.settings['enable_lift_stop'],
+            'allow_lateral_motion': self.settings['allow_lateral_motion'],
             'lift_command_max_age_s': self.settings['lift_command_max_age_s'],
             'counters': dict(self.counters),
             'odometry_age_s': None if self.last_rx.get('odometry') is None

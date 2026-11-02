@@ -23,6 +23,9 @@ ec_serial_bridge:
     # lift stop text mapping both become dead. Keep 'text' until firmware lands
     # a new commit and docs/communication.md is updated.
     lift_cmd_mode: text
+    # Current EC contract rejects nonzero vy. Reject the whole unexpected
+    # command and send a stop; never silently reshape an Omni command.
+    allow_lateral_motion: false
     lift_up_text: 'lift up'
     lift_down_text: 'lift down'
     lift_stop_text: 'lift stop'

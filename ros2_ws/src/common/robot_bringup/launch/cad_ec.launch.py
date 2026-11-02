@@ -25,6 +25,7 @@ def generate_launch_description():
         'start_camera': 'false', 'image_topic': '/camera/image_raw',
         'start_bridge': 'false', 'bridge_root': '', 'port': '/dev/ttyUSB0',
         'bridge_params_file': '', 'baudrate': '115200',
+        'drive_mode': 'differential', 'map_file': '',
         'enable_motion': 'false', 'enable_lift': 'false',
         'initial_x': '', 'initial_y': '', 'initial_yaw': '',
         'use_course_start': 'false',
@@ -59,6 +60,7 @@ def generate_launch_description():
             actions.append(IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={
                 **{key: args[key] for key in ('geometry_file', 'rviz', 'initial_x', 'initial_y', 'initial_yaw')},
                 'allow_unconfirmed_geometry': 'false', 'empty_only': 'true', 'initial_loaded': 'false',
+                 'drive_mode': args['drive_mode'], 'map_file': args['map_file'],
                 'ekf_params_file': str(share/'config/ekf_ec_10hz.yaml')}.items()))
         else:
             actions.append(IncludeLaunchDescription(str(share/'launch/cad_view.launch.py'), launch_arguments={

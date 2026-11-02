@@ -34,7 +34,8 @@ case "$command" in
       ros-jazzy-robot-localization ros-jazzy-laser-filters ros-jazzy-xacro \
       ros-jazzy-cv-bridge python3-colcon-common-extensions python3-opencv \
       python3-numpy python3-yaml python3-tk python3-pil python3-pil.imagetk python3-matplotlib fonts-noto-cjk \
-      python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui
+      python3-serial ros-jazzy-joint-state-publisher ros-jazzy-joint-state-publisher-gui \
+      ros-jazzy-camera-ros ros-jazzy-rosbag2
     ;;
   build)
     load_ros

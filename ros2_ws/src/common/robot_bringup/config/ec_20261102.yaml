@@ -3,6 +3,7 @@ ec_adapter:
   ros__parameters:
     enable_motion: false
     enable_lift: false
+    allow_lateral_motion: false
     telemetry_max_age_s: 0.5
     command_timeout_s: 0.25
     max_linear_speed_m_s: 0.5

@@ -9,7 +9,7 @@
 
 ## 边界
 
-本包只做编解码与转发，不做任何语义改造：
+本包负责编解码与转发，并按显式能力开关拒绝不支持的控制指令：
 
 - 不产生保活指令。EC 侧 500 ms 命令看门狗是安全链的一环，桥不替 NAV 续命。
   唯一例外是 EC 明确要求的 **02 回执重发**：只有回执逾期才发、收到 `F0` 即停、
@@ -38,11 +38,16 @@
 
 **NAV 接入修复与真机操作步骤：** [EC 真机联调步骤](../../../../docs/NAV_EC_真机联调_20261102.md)。
 
+**横向速度决策更新：** 当前真机统一采用 `drive_mode=differential`，MPPI 为 `DiffDrive`，
+不发横向速度。意外非零 vy 会被整条拒绝并发送零速度，而不是保留 vx/wz 后继续行驶。
+差速入架只允许已经对准的直进直退，偏差过大停车重对准。
+完整流程见 [完整联调手册](../../../../docs/NAV_EC_完整联调步骤_20261102.md)。
+
 ## 话题与服务
 
 | 方向 | 名称 | 类型 | 说明 |
 | --- | --- | --- | --- |
-| 订阅 | `/ec/cmd_vel` | `geometry_msgs/Twist` | 转发为 01；`linear.y` 非零时 EC 会拒绝该帧 |
+| 订阅 | `/ec/cmd_vel` | `geometry_msgs/Twist` | 转发为 01；默认非零 `linear.y` 由桥拒绝并发送零速，匹配当前 EC 不支持横移的约束 |
 | 订阅 | `/ec/lift_cmd` | `std_msgs/String`（`lift_cmd_mode=text`）或 `UInt8` | 映射为 02 / 07 |
 | 发布 | `/ec/wheel/odom` | `nav_msgs/Odometry` | 81 → odom→base_link，时间戳取 Pi 时钟 |
 | 发布 | `/ec/imu/data_raw` | `sensor_msgs/Imu` | 82 原样转发，`orientation_covariance[0] = -1` |

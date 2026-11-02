@@ -46,7 +46,7 @@ def rotate_covariance(values, matrix, fallback):
 class EcAdapter(Node):
     def __init__(self):
         super().__init__('ec_adapter')
-        defaults = {'enable_motion': False, 'enable_lift': False,
+        defaults = {'enable_motion': False, 'enable_lift': False, 'allow_lateral_motion': True,
                     'telemetry_max_age_s': .5, 'command_timeout_s': .25,
                     'max_linear_speed_m_s': .5, 'max_angular_speed_rad_s': 2.,
                     'expected_imu_frame': 'base_link', 'imu_to_base_rpy_rad': [0., 0., 0.],
@@ -186,6 +186,10 @@ class EcAdapter(Node):
         if not self.settings['enable_motion']:
             return
         values = (message.linear.x, message.linear.y, message.angular.z)
+        if not self.settings['allow_lateral_motion'] and values[1] != 0.:
+            self.send_zero()
+            self.get_logger().error('Lateral command rejected: use differential NAV and docking', throttle_duration_sec=2.)
+            return
         if not all(math.isfinite(x) for x in values):
             if self.moving:
                 self.send_zero()
@@ -394,6 +398,7 @@ class EcAdapter(Node):
                  'input_age_s': {key: None if value is None else round(now-value, 3)
                                  for key, value in self.last_data.items()},
                  'issues': self.issues, 'motion_enabled': self.settings['enable_motion'],
+                 'allow_lateral_motion': self.settings['allow_lateral_motion'],
                  'lift_enabled': self.settings['enable_lift'], 'reported_lift_target': self.target,
                  'pending_lift_id': self.pending['id'] if self.pending else None,
                  'lift_completion_source': 'ec_timed_state_transition' if ec_state else 'operator_only',
