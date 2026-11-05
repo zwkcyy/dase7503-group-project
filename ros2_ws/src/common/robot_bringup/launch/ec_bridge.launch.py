@@ -36,7 +36,10 @@ def generate_launch_description():
                                            'ships as the ec_serial_bridge package.'))
             bridge_share = Path(get_package_share_directory('ec_serial_bridge'))
             parameters = [args['bridge_params_file'] or str(bridge_share/'config/ec_bridge_20261102.yaml')]
-            parameters.append({'port': args['port'], 'baudrate': args['baudrate'],
+            baudrate = int(args['baudrate'])
+            if baudrate <= 0:
+                raise ValueError('baudrate must be a positive integer')
+            parameters.append({'port': args['port'], 'baudrate': baudrate,
                                'lift_cmd_mode': args['lift_cmd_mode'],
                                'lift_state_mode': args['lift_state_mode']})
             actions.append(Node(package='ec_serial_bridge', executable='ec_serial_bridge',

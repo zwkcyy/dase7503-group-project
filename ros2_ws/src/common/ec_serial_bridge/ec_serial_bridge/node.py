@@ -33,6 +33,7 @@ from std_srvs.srv import SetBool, Trigger
 from . import protocol
 from .framing import PacketParser
 from .lift_retry import ACTION_GIVE_UP, LiftCommandRetrier
+from .sample_clock import SampleClock
 from .transport import SerialTransport
 
 COVARIANCE_LENGTH = 6
@@ -84,6 +85,7 @@ class EcSerialBridge(Node):
         self._validate()
 
         self.parser = PacketParser()
+        self.sample_clock = SampleClock()
         self.transport = SerialTransport(
             self.settings['port'], self.settings['baudrate'], self.settings['read_timeout_s'],
             self.settings['write_timeout_s'], self.settings['reconnect_interval_s'])
@@ -192,6 +194,7 @@ class EcSerialBridge(Node):
     def invalidate_link(self, reason):
         self.cancel_lift(reason)
         self.parser.reset()
+        self.sample_clock.reset()
         self.last_rx.clear()
         self.ec_status = None
         self.last_frame_time = None
@@ -367,6 +370,20 @@ class EcSerialBridge(Node):
         self.rx_frames += 1
         self.last_frame_time = now
         kind, payload = decoded
+        if kind in ('odometry', 'imu'):
+            accepted, reason = self.sample_clock.accept(kind, payload.sample_ms)
+            if not accepted:
+                if reason == 'backward':
+                    self.last_rx.pop(kind, None)
+                    self.get_logger().error(
+                        f'EC {kind} sample_ms moved backwards; sensor stream blocked. '
+                        'Possible MCU restart or reordered data. Reconnect EC serial or '
+                        'restart the bridge after checking the device; no automatic clock reset.')
+                elif reason == 'duplicate':
+                    self.get_logger().warning(
+                        f'Duplicate EC {kind} sample_ms discarded; sensor timestamp not refreshed',
+                        throttle_duration_sec=5.)
+                return
         self.last_rx[kind] = now
         if kind == 'odometry':
             self.publish_odometry(payload, now)
@@ -473,6 +490,14 @@ class EcSerialBridge(Node):
             'ec_armed': None if ec_status is None else ec_status.has(protocol.FLAG_ARMED),
             'ec_estop': None if ec_status is None else ec_status.has(protocol.FLAG_ESTOP),
             'ec_fault': None if ec_status is None else ec_status.fault,
+            # These firmware flags are diagnostic until their real-board semantics
+            # are verified. Finite samples alone do not prove physical validity.
+            'ec_initialized': None if ec_status is None else ec_status.has(protocol.FLAG_INITIALIZED),
+            'ec_odometry_valid': None if ec_status is None else ec_status.has(protocol.FLAG_ODOMETRY_VALID),
+            'ec_imu_valid': None if ec_status is None else ec_status.has(protocol.FLAG_IMU_VALID),
+            'ec_lift_state_known': None if ec_status is None else ec_status.has(protocol.FLAG_LIFT_STATE_KNOWN),
+            'sample_clock': self.sample_clock.snapshot(),
+            'serial_exclusive_requested': self.transport.exclusive,
             'last_error': self.transport.last_error,
             'lift_cmd_mode': self.settings['lift_cmd_mode'],
             'lift_state_mode': self.settings['lift_state_mode'],

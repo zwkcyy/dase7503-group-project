@@ -3,6 +3,10 @@
 ekf_filter_node:
   ros__parameters:
     frequency: 30.0
+    # Predict between the 10 Hz measurements so output stamps advance at 30 Hz.
+    # Predicted output is not proof of a live EC link: retain the adapter's raw
+    # odometry/IMU freshness checks for every motion command.
+    predict_to_current_time: true
     sensor_timeout: 0.35
     two_d_mode: true
     publish_tf: true

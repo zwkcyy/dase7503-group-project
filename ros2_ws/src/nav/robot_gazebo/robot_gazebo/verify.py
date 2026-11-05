@@ -19,6 +19,7 @@ from std_msgs.msg import String, Bool
 from rclpy.qos import QoSProfile, DurabilityPolicy
 from robot_geometry.directional_safety import rear_visibility
 from .audit import audit
+from .drive_policy import DRIVE_MODES
 
 
 def main():
@@ -28,6 +29,7 @@ def main():
     parser.add_argument('--scene-file'); parser.add_argument('--physics-file')
     parser.add_argument('--gui', action='store_true')
     parser.add_argument('--timeout', type=float, default=600.)
+    parser.add_argument('--drive-mode', choices=DRIVE_MODES, default='omni')
     args = parser.parse_args()
     if not 1 <= args.domain <= 232 or not 0 < args.timeout <= 1800:
         parser.error('Use an isolated domain 1..232 and wall timeout 0..1800 seconds')
@@ -36,7 +38,8 @@ def main():
     directory.parent.mkdir(parents=True, exist_ok=True)
     os.environ.update(ROS_DOMAIN_ID=str(args.domain), ROS_AUTOMATIC_DISCOVERY_RANGE='LOCALHOST')
     command = ['ros2', 'launch', 'robot_gazebo', 'course.launch.py', 'gui:='+str(args.gui).lower(),
-               'domain_id:='+str(args.domain), 'output_dir:='+str(directory)]
+               'domain_id:='+str(args.domain), 'output_dir:='+str(directory),
+               'drive_mode:='+args.drive_mode]
     for key in ('scene_file', 'physics_file'):
         value = getattr(args, key)
         if value: command.append(key+':='+str(Path(value).resolve(strict=True)))
@@ -92,6 +95,7 @@ def main():
         if not directory.exists():
             raise RuntimeError(f'Gazebo did not start; see {log.name}')
         result = {'state': dict(state), 'phases': phases, 'codes': codes,
+                  'drive_mode': args.drive_mode,
                   'wall_seconds': time.monotonic()-started, 'launch_returncode': process.poll()}
         (directory/'observer.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
         (directory/'lidar_observations.json').write_text(json.dumps(
@@ -107,6 +111,6 @@ def main():
                 os.killpg(process.pid, signal.SIGTERM)
                 process.wait(timeout=8)
         node.destroy_node(); rclpy.try_shutdown(); log.close()
-    report = audit(directory)
+    report = audit(directory, drive_mode=args.drive_mode)
     print(json.dumps({'directory': str(directory), **report}, indent=2), flush=True)
     raise SystemExit(0 if report['passed'] else 1)

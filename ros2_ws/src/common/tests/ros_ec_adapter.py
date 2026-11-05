@@ -7,9 +7,10 @@ from pathlib import Path
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import rclpy
+from rclpy.task import Future
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import Imu
@@ -52,8 +53,12 @@ class EcAdapterChecks(unittest.TestCase):
         self.clock_patch = patch.object(self.node, 'get_clock', return_value=clock)
         self.clock_patch.start()
         self.addCleanup(self.clock_patch.stop)
-        for name in ('odom_pub', 'imu_pub', 'velocity_pub', 'lift_pub', 'completion_pub', 'status_pub'):
+        for name in ('odom_pub', 'imu_pub', 'velocity_pub', 'lift_pub', 'completion_pub',
+                     'status_pub', 'cancel_lift_pub'):
             setattr(self.node, name, Capture())
+        # No service request leaves the process in this callback-only suite.
+        self.node.lift_stop_client = Mock()
+        self.node.lift_stop_client.service_is_ready.return_value = False
 
     def odom(self, age=0.):
         message = Odometry()
@@ -85,6 +90,23 @@ class EcAdapterChecks(unittest.TestCase):
 
     def confirm(self, value=True):
         return self.node.confirm_lift(SetBool.Request(data=value), SetBool.Response())
+
+    def resume_completed(self, coroutine):
+        with self.assertRaises(StopIteration) as completed:
+            coroutine.send(None)
+        return completed.exception.value
+
+    def bridge_event(self, event, **overrides):
+        payload = {'session': 'test-session', 'request_id': 1, 'direction': 1,
+                   'stamp_ns': 100_000_000_000, 'event': event}
+        payload.update(overrides)
+        self.node.lift_event(String(data=json.dumps(payload)))
+
+    def ec_lift(self):
+        self.node.settings['lift_completion_mode'] = 'ec_state'
+        self.node.lift_target(UInt8(data=0))
+        self.lift()
+        self.bridge_event('submitted')
 
     def test_default_outputs_disabled(self):
         self.ready()
@@ -240,7 +262,8 @@ class EcAdapterChecks(unittest.TestCase):
         self.node.tick()
         self.assertIsNone(self.node.pending)
         self.assertFalse(self.confirm().success)
-        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1])
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, -1])
+        self.assertEqual(len(self.node.cancel_lift_pub.messages), 1)
         self.assertEqual([m.data for m in self.node.lift_pub.messages], ['lift up'])
 
     def test_lift_requires_one_receiver_and_one_pending_command(self):
@@ -255,11 +278,98 @@ class EcAdapterChecks(unittest.TestCase):
 
     def test_explicit_stop_clears_pending_without_arrival(self):
         self.lift()
-        response = self.node.stop_lift(Trigger.Request(), Trigger.Response())
-        self.assertTrue(response.success)
+        coroutine = self.node.stop_lift(Trigger.Request(), Trigger.Response())
+        self.addCleanup(coroutine.close)
+        response = self.resume_completed(coroutine)
+        self.assertFalse(response.success)
+        self.assertIn('unavailable', response.message)
+        self.node.lift_stop_client.call_async.assert_not_called()
         self.assertIsNone(self.node.pending)
-        self.assertEqual([m.data for m in self.node.lift_pub.messages], ['lift up', 'lift stop'])
-        self.assertEqual(self.node.completion_pub.messages[-1].data, -1)
+        self.assertEqual([m.data for m in self.node.lift_pub.messages], ['lift up'])
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, -1])
+        self.assertEqual(len(self.node.cancel_lift_pub.messages), 1)
+
+    def test_async_stop_relays_bridge_acceptance_and_refusal(self):
+        self.node.lift_stop_client.service_is_ready.return_value = True
+        for accepted in (True, False):
+            with self.subTest(accepted=accepted):
+                self.lift()
+                remote = Future()
+                self.node.lift_stop_client.call_async.return_value = remote
+                coroutine = self.node.stop_lift(Trigger.Request(), Trigger.Response())
+                self.addCleanup(coroutine.close)
+                coroutine.send(None)
+                self.assertIsNone(self.node.pending)
+                self.assertEqual(len(self.node.stop_requests), 1)
+                remote.set_result(Trigger.Response(success=accepted, message='bridge result'))
+                self.node.tick()
+                response = self.resume_completed(coroutine)
+                self.assertEqual(response.success, accepted)
+                self.assertEqual(response.message, 'bridge result')
+                self.assertEqual(self.node.stop_requests, [])
+        self.assertEqual([m.data for m in self.node.lift_pub.messages], ['lift up', 'lift up'])
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1] * 4)
+        self.assertEqual(len(self.node.cancel_lift_pub.messages), 2)
+
+    def test_async_stop_timeout_cancels_service_without_claiming_physical_stop(self):
+        self.lift()
+        self.node.lift_stop_client.service_is_ready.return_value = True
+        remote = Future()
+        self.node.lift_stop_client.call_async.return_value = remote
+        coroutine = self.node.stop_lift(Trigger.Request(), Trigger.Response())
+        self.addCleanup(coroutine.close)
+        coroutine.send(None)
+        self.now += 1.01
+        self.node.tick()
+        response = self.resume_completed(coroutine)
+        self.assertFalse(response.success)
+        self.assertIn('timed out/failed', response.message)
+        self.assertIn('physical stop unconfirmed', response.message)
+        self.assertTrue(remote.cancelled())
+        self.node.lift_stop_client.remove_pending_request.assert_called_once_with(remote)
+        self.assertEqual(self.node.stop_requests, [])
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, -1])
+
+    def test_ec_state_requires_baseline_then_ack_and_endpoint_transition(self):
+        self.node.settings['lift_completion_mode'] = 'ec_state'
+        self.lift()
+        self.assertIsNone(self.node.pending)
+        self.assertFalse(self.node.lift_pub.messages)
+        self.node.lift_target(UInt8(data=1))
+        self.lift()
+        self.assertIsNone(self.node.pending)
+        self.assertFalse(self.node.lift_pub.messages)
+        self.ec_lift()
+        self.assertFalse(self.confirm().success)
+        self.bridge_event('accepted')
+        self.assertIsNotNone(self.node.pending)
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1])
+        self.node.lift_target(UInt8(data=1))
+        self.assertIsNone(self.node.pending)
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, 1])
+
+    def test_ec_state_transition_before_ack_waits_for_matching_acceptance(self):
+        self.ec_lift()
+        self.node.lift_target(UInt8(data=1))
+        self.assertIsNotNone(self.node.pending)
+        self.bridge_event('accepted', session='old-session')
+        self.bridge_event('accepted', request_id=2)
+        self.bridge_event('accepted', direction=0)
+        self.bridge_event('accepted', stamp_ns=99_000_000_000)
+        self.bridge_event('accepted', stamp_ns=101_000_000_000)
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1])
+        self.bridge_event('accepted')
+        self.assertIsNone(self.node.pending)
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, 1])
+
+    def test_ec_state_feedback_gap_invalidates_late_completion(self):
+        self.ec_lift()
+        self.bridge_event('accepted')
+        self.now += .51
+        self.node.lift_target(UInt8(data=1))
+        self.assertIsNone(self.node.pending)
+        self.assertEqual([m.data for m in self.node.completion_pub.messages], [-1, -1])
+        self.assertEqual(len(self.node.cancel_lift_pub.messages), 1)
 
     def test_terminal_mission_state_invalidates_confirmation(self):
         for state in ('ERROR', 'COMPLETE', 'WAIT_START'):

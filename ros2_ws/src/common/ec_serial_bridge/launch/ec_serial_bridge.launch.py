@@ -7,6 +7,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
@@ -21,8 +22,8 @@ def generate_launch_description():
     arguments = [DeclareLaunchArgument(key, default_value=value) for key, value in defaults.items()]
     node = Node(package='ec_serial_bridge', executable='ec_serial_bridge', output='screen',
                 parameters=[LaunchConfiguration('params_file'), {
-                    'port': LaunchConfiguration('port'),
-                    'baudrate': LaunchConfiguration('baudrate'),
-                    'lift_cmd_mode': LaunchConfiguration('lift_cmd_mode'),
-                    'lift_state_mode': LaunchConfiguration('lift_state_mode')}])
+                    'port': ParameterValue(LaunchConfiguration('port'), value_type=str),
+                    'baudrate': ParameterValue(LaunchConfiguration('baudrate'), value_type=int),
+                    'lift_cmd_mode': ParameterValue(LaunchConfiguration('lift_cmd_mode'), value_type=str),
+                    'lift_state_mode': ParameterValue(LaunchConfiguration('lift_state_mode'), value_type=str)}])
     return LaunchDescription([*arguments, node])

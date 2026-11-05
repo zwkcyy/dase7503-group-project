@@ -31,6 +31,10 @@ class PlanarBase(Node):
         require_isolated_domain()
         self.declare_parameter('world_file', '')
         self.declare_parameter('geometry_file', '')
+        self.declare_parameter('drive_mode', 'omni')
+        self.drive_mode = self.get_parameter('drive_mode').value
+        if self.drive_mode not in ('omni', 'differential'):
+            raise ValueError('drive_mode must be omni or differential')
         self.declare_parameter('freeze_scan', False)
         self.declare_parameter('freeze_wheel', False)
         self.frozen_scan_stamp = None
@@ -54,6 +58,8 @@ class PlanarBase(Node):
         self.pending_lift = None
         self.motion_since = time.monotonic()
         self.metrics = {'model': 'planar_body_legs_and_carried_deck', 'samples': 0,
+                        'drive_mode': self.drive_mode, 'rejected_lateral_commands': 0,
+                        'maximum_requested_abs_vy': 0.0, 'maximum_applied_abs_vy': 0.0,
                         'actual_collisions': 0, 'blocked_collision_commands': 0,
                         'minimum_clearance_m': None, 'minimum_swept_clearance_m': None,
                         'lift_rejections': [], 'blocked_samples': []}
@@ -94,6 +100,14 @@ class PlanarBase(Node):
         if not all(math.isfinite(x) for x in values):
             self.velocity = [0., 0., 0.]
             return
+        self.metrics['maximum_requested_abs_vy'] = max(self.metrics['maximum_requested_abs_vy'], abs(values[1]))
+        if self.drive_mode == 'differential' and values[1] != 0.0:
+            # Match the EC contract: reject the whole command, including x/yaw.
+            # Clipping just y would silently execute a different trajectory.
+            self.velocity = [0., 0., 0.]
+            self.command_at = time.monotonic()
+            self.metrics['rejected_lateral_commands'] += 1
+            return
         self.velocity = [max(-lim, min(lim, value)) for value, lim in zip(values, (.4, .3, 1.5))]
         self.command_at = time.monotonic()
 
@@ -116,6 +130,7 @@ class PlanarBase(Node):
             self.get_logger().warning('Simulated collision blocked motion', throttle_duration_sec=2.)
         else:
             self.pose = candidate
+        self.metrics['maximum_applied_abs_vy'] = max(self.metrics['maximum_applied_abs_vy'], abs(velocity[1]))
         if any(abs(v) > .005 for v in velocity):
             self.motion_since = now
         if self.rack_world:

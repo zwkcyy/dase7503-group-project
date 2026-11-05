@@ -5,6 +5,8 @@ protocol and framing modules testable on a host without ``python3-serial``.
 Nothing here interprets a byte; it only opens, reads and writes.
 """
 
+import os
+
 import serial
 
 
@@ -21,6 +23,10 @@ class SerialTransport:
         self._next_attempt = 0.0
         self.last_error = ''
         self.open_count = 0
+        # POSIX pyserial uses an advisory flock. Other cooperating instances are
+        # rejected; this cannot prevent access by applications which ignore locks.
+        # The option is unsupported by the Windows backend, so omit it there.
+        self.exclusive = os.name == 'posix'
 
     @property
     def is_open(self):
@@ -31,11 +37,12 @@ class SerialTransport:
             return
         self._next_attempt = now + self.reconnect_interval_s
         try:
+            options = {'exclusive': True} if self.exclusive else {}
             self._handle = serial.Serial(port=self.port, baudrate=self.baudrate,
                                          bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,
                                          stopbits=serial.STOPBITS_ONE,
                                          timeout=self.read_timeout_s,
-                                         write_timeout=self.write_timeout_s)
+                                         write_timeout=self.write_timeout_s, **options)
             self.open_count += 1
             self.last_error = ''
         except (serial.SerialException, OSError, ValueError) as error:

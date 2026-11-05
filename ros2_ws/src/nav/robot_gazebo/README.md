@@ -180,3 +180,31 @@ conditions. They do not certify collision-free hardware operation.
 References: [Gazebo Harmonic](https://gazebosim.org/docs/harmonic/),
 [official mecanum example](https://github.com/gazebosim/gz-sim/blob/gz-sim8/examples/worlds/mecanum_drive.sdf),
 [joint position controller](https://github.com/gazebosim/gz-sim/blob/gz-sim8/src/systems/joint_position_controller/JointPositionController.cc).
+## Differential command mode
+
+`course.launch.py drive_mode:=differential` passes the same mode to NAV, docking,
+and the Gazebo actuator adapter. The default remains `omni`. Differential mode
+retains the CAD mecanum wheels and their contact physics, but accepts only body
+`vx` and `wz`: any nonzero `linear.y` rejects the **whole** incoming command and
+publishes zero. Nonfinite commands also stop motion. The 0.4 s watchdog and
+contact emergency stop remain active.
+
+Run the explicit full verification with:
+
+```bash
+ros2 run robot_gazebo verify_gazebo --output /absolute/new/run-directory --drive-mode differential
+```
+
+The audit keeps the existing 180 simulation second deadline, docking precision,
+placement, footprint, and collision checks. `gazebo_summary.json` and
+`gazebo_audit.json` additionally record input, adapter output, and **Gazebo
+transport** command statistics. Differential verification requires observed
+nonzero motion commands and zero lateral commands on the plugin's actual topic.
+It fails on rejected input or a lateral/nonfinite transport command.
+
+Direct publishers to ROS `/gazebo/cmd_vel` or its native Gazebo equivalent can
+bypass the adapter. The transport observer detects these violations and latches
+an emergency, but cannot undo a command already delivered. This is an audited
+adapter restriction, not a rejection implemented inside `MecanumDrive`. A
+transport observation is not a plugin receipt acknowledgement. Physical lateral
+slip is still possible and remains visible in physics observations.

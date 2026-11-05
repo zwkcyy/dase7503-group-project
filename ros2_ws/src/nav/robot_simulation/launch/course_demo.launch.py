@@ -47,6 +47,7 @@ def generate_launch_description():
         return [
             IncludeLaunchDescription(str(share/'launch/integrated_demo.launch.py'), launch_arguments={
                 'domain_id': LaunchConfiguration('domain_id'), 'rviz': LaunchConfiguration('rviz'),
+                 'drive_mode': LaunchConfiguration('drive_mode'),
                 'show_results': 'false', 'output_dir': str(path),
                 'mission_file': str(path/'mission.yaml'), 'world_file': str(path/'world.yaml'),
                 'map_file': str(path/'course_map.yaml'), 'geometry_file': str(path/'geometry.yaml'),
@@ -62,6 +63,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument('domain_id', default_value='75'),
+        DeclareLaunchArgument('drive_mode', default_value='omni', choices=['omni', 'differential']),
         DeclareLaunchArgument('rviz', default_value='false'),
         DeclareLaunchArgument('show_field', default_value='true'),
         DeclareLaunchArgument('fullscreen', default_value='false'),

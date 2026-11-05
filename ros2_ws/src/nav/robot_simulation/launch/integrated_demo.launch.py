@@ -24,6 +24,7 @@ def generate_launch_description():
         return [
             IncludeLaunchDescription(str(share/'launch/navigation_demo.launch.py'), launch_arguments={
                 'domain_id': LaunchConfiguration('domain_id'), 'mission': 'false',
+                 'drive_mode': LaunchConfiguration('drive_mode'),
                 'geometry_file': LaunchConfiguration('geometry_file'),
                 'world_file': LaunchConfiguration('world_file'),
                 'map_file': LaunchConfiguration('map_file'),
@@ -34,7 +35,8 @@ def generate_launch_description():
                 condition=IfCondition(LaunchConfiguration('mock_lift'))),
             Node(package='robot_mission', executable='docking_controller', output='screen',
                  condition=IfCondition(LaunchConfiguration('docking')),
-                 parameters=[{'geometry_file': LaunchConfiguration('geometry_file')}]),
+                  parameters=[{'geometry_file': LaunchConfiguration('geometry_file'),
+                               'drive_mode': LaunchConfiguration('drive_mode')}]),
             Node(package='robot_simulation', executable='mission_camera', output='screen', parameters=[{
                 'mission_file': mission_file, 'scenario': LaunchConfiguration('image_scenario')}]),
             Node(package='robot_vision', executable='qr_detector_node', output='screen', parameters=[{
@@ -57,6 +59,7 @@ def generate_launch_description():
         DeclareLaunchArgument('docking', default_value='false'),
         DeclareLaunchArgument('record_source', default_value='planar_simulation_with_real_qr_decoder'),
         DeclareLaunchArgument('domain_id', default_value='75'),
+        DeclareLaunchArgument('drive_mode', default_value='omni', choices=['omni', 'differential']),
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('show_results', default_value='true'),
         DeclareLaunchArgument('image_scenario', default_value='success'),

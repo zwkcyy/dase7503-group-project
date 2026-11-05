@@ -2,6 +2,8 @@
 *.py text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
+# Patch context prefixes intentionally precede tabs and blank lines.
+scripts/patches/*.patch text eol=lf -whitespace
 # Preserve the delivered package byte-for-byte, including its checksum manifest.
 ros2_ws/src/nav/logistics_robot_description/** -text
 # Keep PDF byte offsets intact across Windows/Linux checkouts.
