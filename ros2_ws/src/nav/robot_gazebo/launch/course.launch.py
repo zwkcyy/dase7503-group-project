@@ -15,6 +15,7 @@ from launch_ros.actions import Node
 from robot_bringup.launch_support import after_preflight
 from robot_simulation.launch_support import validate_domain
 from robot_gazebo.world import generate
+from robot_gazebo.drive_policy import validate_drive_mode
 
 
 def bridge_config():
@@ -39,12 +40,13 @@ def generate_launch_description():
     nav = Path(get_package_share_directory('robot_navigation'))
     run_id = datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]
     defaults = dict(domain_id='75', gui='true', rviz='false', mission='true', navigation='true',
-                    show_results='false', headless_rendering='false',
+                    show_results='false', headless_rendering='false', drive_mode='omni',
                     output_dir=str(Path.home()/'.ros/nav_vi_runs'/('gazebo-'+run_id)),
                     scene_file=str(sim/'config/course_layout.yaml'), physics_file=str(own/'config/physics.yaml'))
 
     def prepare(context):
         args = {key: LaunchConfiguration(key).perform(context) for key in defaults}
+        validate_drive_mode(args['drive_mode'])
         enabled = lambda key: args[key].lower() == 'true'
         if enabled('mission') and not enabled('navigation'):
             raise ValueError('Mission requires navigation')
@@ -55,7 +57,7 @@ def generate_launch_description():
         if enabled('headless_rendering'): command.append('--headless-rendering')
         server = ExecuteProcess(cmd=command, output='screen')
         adapter = Node(package='robot_gazebo', executable='gazebo_io', parameters=[{
-            'output_dir': str(path), 'use_sim_time': True}], output='screen')
+            'output_dir': str(path), 'use_sim_time': True, 'drive_mode': args['drive_mode']}], output='screen')
         bridge = Node(package='ros_gz_bridge', executable='parameter_bridge', name='gazebo_bridge',
                       parameters=[{'config_file': str(path/'bridge.yaml'), 'use_sim_time': True}], output='screen')
         actions = [server,
@@ -81,10 +83,12 @@ def generate_launch_description():
             actions += [IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={
                 'geometry_file': str(path/'geometry.yaml'), 'allow_unconfirmed_geometry': 'true',
                 'initial_loaded': 'false', 'use_sim_time': 'true', 'rviz': args['rviz'],
+                'drive_mode': args['drive_mode'],
                 'map_file': str(path/'course_map.yaml'), 'params_file': str(path/'nav2.yaml'),
                 'initial_x': str((x+dx)/1000), 'initial_y': str((y+dy)/1000), 'initial_yaw': str(yaw+da)}.items()),
                 Node(package='robot_mission', executable='docking_controller', output='screen',
-                     parameters=[{'geometry_file': str(path/'geometry.yaml'), 'use_sim_time': True}])]
+                     parameters=[{'geometry_file': str(path/'geometry.yaml'), 'use_sim_time': True,
+                                  'drive_mode': args['drive_mode']}])]
         if enabled('mission'):
             check = ExecuteProcess(cmd=['ros2', 'run', 'robot_bringup', 'preflight', '--mode', 'full',
                 '--mission-file', str(path/'mission.yaml'), '--use-sim-time', '--timeout', '90',

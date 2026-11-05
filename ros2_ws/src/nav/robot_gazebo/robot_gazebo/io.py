@@ -24,6 +24,8 @@ from std_srvs.srv import Trigger
 from gz.transport13 import Node as GzNode
 from gz.msgs10.pose_v_pb2 import Pose_V
 from gz.msgs10.contacts_pb2 import Contacts
+from gz.msgs10.twist_pb2 import Twist as GzTwist
+from .drive_policy import admitted_velocity, observe_velocity, validate_drive_mode, velocity_metrics
 
 
 def yaw(q):
@@ -34,6 +36,8 @@ class GazeboIO(Node):
     def __init__(self):
         super().__init__('gazebo_io')
         self.declare_parameter('output_dir', '')
+        self.declare_parameter('drive_mode', 'omni')
+        self.drive_mode = validate_drive_mode(self.get_parameter('drive_mode').value)
         self.directory = Path(self.get_parameter('output_dir').value)
         self.settings = yaml.safe_load((self.directory/'physics.yaml').read_text())
         self.scene = yaml.safe_load((self.directory/'scene.yaml').read_text())
@@ -51,6 +55,10 @@ class GazeboIO(Node):
         self.pending, self.carried, self.target, self.lift_position = None, None, 0., None
         self.joint_received, self.command_received, self.last_sim = 0., 0., None
         self.velocity, self.command = [0., 0., 0.], Twist()
+        self.command_metrics = {name: velocity_metrics() for name in ('input', 'output', 'gazebo_transport')}
+        self.rejected_velocity_commands = 0
+        self.transport_velocity_fault = None
+        self.transport_fault_reported = False
         self.bad_contacts, self.allowed_contacts, self.moves = [], 0, []
         self.unexpected_contact_samples = 0
         self.emergency = False
@@ -79,6 +87,10 @@ class GazeboIO(Node):
         self.create_timer(.5, self.report, clock=self.wall_clock)
         # Subscribe only after all state read by transport callbacks is ready.
         self.gz.subscribe(Pose_V, '/world/course/dynamic_pose/info', self.on_truth)
+        # Observe Gazebo transport after the ROS bridge, on the plugin's actual
+        # command topic. This also detects commands bypassing the ROS adapter.
+        if not self.gz.subscribe(GzTwist, '/gazebo/cmd_vel', self.on_transport_command):
+            raise RuntimeError('Cannot observe Gazebo actuator command transport')
         for topic in self.contact_topics:
             self.gz.subscribe(Contacts, topic, self.on_contacts)
         self.get_logger().info('GAZEBO PHYSICS: wheel drive, gravity/contact lift, rendered camera; no pose commands')
@@ -121,11 +133,37 @@ class GazeboIO(Node):
 
     def on_command(self, msg):
         values = [msg.linear.x, msg.linear.y, msg.angular.z]
-        self.command = msg if all(math.isfinite(v) for v in values) else Twist()
-        self.command.linear.x = max(-.4, min(.4, self.command.linear.x))
-        self.command.linear.y = max(-.3, min(.3, self.command.linear.y))
-        self.command.angular.z = max(-1.5, min(1.5, self.command.angular.z))
+        accepted, reason = admitted_velocity(values, self.drive_mode)
+        with self.lock:
+            observe_velocity(self.command_metrics['input'], values)
+            self.rejected_velocity_commands += int(bool(reason))
+        self.command = Twist()
+        self.command.linear.x, self.command.linear.y, self.command.angular.z = accepted
         self.command_received = time.monotonic()
+        if reason:
+            self.event('velocity_rejected', reason=reason, drive_mode=self.drive_mode,
+                       requested_velocity=[v if math.isfinite(v) else str(v) for v in values])
+            self.get_logger().error('Gazebo velocity rejected: '+reason, throttle_duration_sec=2.)
+
+    def publish_velocity(self, msg):
+        # Defence at the final adapter publication, including shutdown/watchdog.
+        values = [msg.linear.x, msg.linear.y, msg.angular.z]
+        accepted, _ = admitted_velocity(values, self.drive_mode)
+        output = Twist()
+        output.linear.x, output.linear.y, output.angular.z = accepted
+        with self.lock:
+            observe_velocity(self.command_metrics['output'], accepted)
+        self.velocity_pub.publish(output)
+
+    def on_transport_command(self, msg):
+        values = [msg.linear.x, msg.linear.y, msg.angular.z]
+        with self.lock:
+            observe_velocity(self.command_metrics['gazebo_transport'], values)
+            if self.drive_mode == 'differential' and (
+                    not all(math.isfinite(v) for v in values) or values[1] != 0.):
+                # Observation cannot undo a native Gazebo publication. Stop our
+                # outputs and fail the audit; do not claim plugin-level blocking.
+                self.transport_velocity_fault = [v if math.isfinite(v) else str(v) for v in values]
 
     def on_odom(self, msg):
         # These velocities come from Gazebo's wheel-joint encoder integration.
@@ -222,6 +260,12 @@ class GazeboIO(Node):
         with self.lock:
             poses, fresh, contacts = dict(self.latest_poses), self.pose_received, self.contacts
             self.contacts = {}
+            transport_fault = self.transport_velocity_fault
+        if transport_fault is not None:
+            self.emergency = True
+            if not self.transport_fault_reported:
+                self.event('gazebo_transport_velocity_fault', velocity=transport_fault)
+                self.transport_fault_reported = True
         for (a, b), depth in contacts.items():
             if self.permitted(a, b):
                 self.allowed_contacts += 1
@@ -233,7 +277,7 @@ class GazeboIO(Node):
                     self.event('unexpected_contact', collision1=a, collision2=b, depth_m=depth)
                     self.get_logger().error(f'Unexpected Gazebo contact: {a} / {b}')
                 self.emergency = True
-        self.velocity_pub.publish(self.command if not self.emergency and time.monotonic()-self.command_received < .4 else Twist())
+        self.publish_velocity(self.command if not self.emergency and time.monotonic()-self.command_received < .4 else Twist())
         if self.emergency and not self.stop_requested and self.stop_client.service_is_ready():
             self.stop_client.call_async(Trigger.Request())
             self.stop_requested = True
@@ -249,7 +293,12 @@ class GazeboIO(Node):
         self.latest_snapshot = self.snapshot(self.last_truth_time or now, poses)
 
     def report(self):
+        with self.lock:
+            command_metrics = {name: dict(values) for name, values in self.command_metrics.items()}
         data = {**self.latest_snapshot, 'engine': 'Gazebo Harmonic', 'moves': self.moves,
+                'drive_mode': self.drive_mode, 'command_metrics': command_metrics,
+                'rejected_velocity_commands': self.rejected_velocity_commands,
+                'transport_velocity_fault': self.transport_velocity_fault,
                 'contact_samples_received': self.contact_samples, 'allowed_contact_samples': self.allowed_contacts,
                 'unexpected_contact_samples': self.unexpected_contact_samples, 'unexpected_contacts': self.bad_contacts,
                 'emergency_latched': self.emergency, 'dropped_truth_rows': self.dropped_truth_rows}
@@ -260,8 +309,9 @@ class GazeboIO(Node):
 
     def destroy_node(self):
         if rclpy.ok():
-            self.velocity_pub.publish(Twist())
+            self.publish_velocity(Twist())
         self.gz.unsubscribe('/world/course/dynamic_pose/info')
+        self.gz.unsubscribe('/gazebo/cmd_vel')
         for topic in self.contact_topics:
             self.gz.unsubscribe(topic)
         self.flush_truth()

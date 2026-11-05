@@ -17,6 +17,9 @@ case "$mode" in
   ec_adapter)
     python3 ros2_ws/src/common/tests/ros_ec_adapter.py "$output"
     ;;
+  ec_serial_pty)
+    python3 ros2_ws/src/common/tests/ros_ec_serial_pty.py "$output"
+    ;;
   launch_parameters)
     python3 ros2_ws/src/common/tests/ros_launch_parameters.py "$output"
     ;;
@@ -36,9 +39,9 @@ case "$mode" in
     python3 ros2_ws/src/common/tests/ros_integration.py "$mode" "$output"
     ;;
   all)
-    for item in offline robustness launch_parameters motion_safety rehearsal navigation vision cancellation envelope integrated integrated_faults course collision_stress collision_faults preflight ec_adapter; do
+    for item in offline robustness launch_parameters motion_safety rehearsal navigation vision cancellation envelope integrated integrated_faults course collision_stress collision_faults preflight ec_adapter ec_serial_pty; do
       bash scripts/check_nav.sh "$item" "$output"
     done
     ;;
-  *) echo 'Choose offline, robustness, launch_parameters, motion_safety, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course, collision_stress, collision_faults, viewer, preflight, ec_adapter or all.' >&2; exit 2 ;;
+  *) echo 'Choose offline, robustness, launch_parameters, motion_safety, rehearsal, navigation, vision, cancellation, envelope, integrated, integrated_faults, course, collision_stress, collision_faults, viewer, preflight, ec_adapter, ec_serial_pty or all.' >&2; exit 2 ;;
 esac

@@ -212,6 +212,25 @@ class DecodeTests(unittest.TestCase):
     def test_unknown_type_is_rejected(self):
         self.assertIsNone(self.parse_one(frame(0x99, b'')))
 
+    def test_all_downlink_echoes_are_rejected(self):
+        commands = (protocol.encode_velocity(.1, 0., -.2), protocol.encode_lift(1),
+                    protocol.encode_arm(False), protocol.encode_estop(True),
+                    protocol.encode_stop(), protocol.encode_status_request(),
+                    protocol.encode_lift_stop())
+        for command in commands:
+            with self.subTest(packet_type=command[2]):
+                self.assertIsNone(self.parse_one(command))
+
+    def test_echo_does_not_hide_following_telemetry_or_ack(self):
+        stream = (protocol.encode_status_request() + protocol.encode_lift(1)
+                  + odometry_frame(1., 2., .5, .1, 0., .2)
+                  + frame(protocol.TYPE_ACK, bytes((protocol.TYPE_LIFT, 0))))
+        decoded = [protocol.decode(item) for item in PacketParser().feed(stream)]
+        self.assertEqual(decoded[:2], [None, None])
+        self.assertEqual(decoded[2][0], 'odometry')
+        self.assertEqual(decoded[3][0], 'ack')
+        self.assertTrue(decoded[3][1].accepted)
+
 
 class LiftRetryTests(unittest.TestCase):
     """The 02 command is acked by F0; a missing ack triggers a resend."""

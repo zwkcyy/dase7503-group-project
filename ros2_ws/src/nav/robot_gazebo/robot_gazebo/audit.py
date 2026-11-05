@@ -5,6 +5,7 @@ import math
 from pathlib import Path
 import yaml
 from robot_simulation.world import corners, overlap
+from .drive_policy import command_audit, DRIVE_MODES, validate_drive_mode
 
 
 def wrap(value):
@@ -15,13 +16,17 @@ def tilt(pose):
     return math.acos(max(-1., min(1., 1-2*(pose['qx']**2+pose['qy']**2))))
 
 
-def audit(path):
+def audit(path, drive_mode=None):
     path = Path(path)
     summary = json.loads((path/'gazebo_summary.json').read_text())
     scene = yaml.safe_load((path/'scene.yaml').read_text())
     geometry = yaml.safe_load((path/'geometry.yaml').read_text())
     rows = [json.loads(line) for line in (path/'gazebo_trace.jsonl').read_text().splitlines()]
     observer = json.loads((path/'observer.json').read_text())
+    launch_file = path/'launch_arguments.yaml'
+    launch_mode = yaml.safe_load(launch_file.read_text()).get('drive_mode', 'omni') if launch_file.exists() else None
+    drive_mode = validate_drive_mode(drive_mode or observer.get('drive_mode') or launch_mode
+                                    or summary.get('drive_mode', 'omni'))
     checks = {'mission_complete': summary.get('mission_state') == 'COMPLETE' and summary.get('rack_index') == 4,
               'contact_monitor_active': summary.get('contact_samples_received', 0) > 100,
               'no_unexpected_contacts': summary.get('unexpected_contact_samples') == 0,
@@ -31,6 +36,13 @@ def audit(path):
               'nine_decoded_markers': observer.get('codes') == ['START', 'RACKA_DEMO', 'END', 'RACKB_DEMO',
                                                                'END', 'RACKC_DEMO', 'END', 'RACKD_DEMO', 'END'],
               'four_empty_exits': sum(p['state'] == 'EXIT_DESTINATION' for p in observer['phases']) == 4}
+    checks.update(command_audit(summary, drive_mode))
+    if launch_mode is not None or 'drive_mode' in observer:
+        checks['drive_mode_records_consistent'] = all(
+            mode == drive_mode for mode in (launch_mode, observer.get('drive_mode')) if mode is not None)
+    if drive_mode == 'differential':
+        checks['differential_launch_mode_recorded'] = launch_mode == drive_mode
+        checks['differential_observer_mode_recorded'] = observer.get('drive_mode') == drive_mode
     active = [r for r in rows if r['mission_state'] not in ('WAIT_START',)]
     complete = next((r for r in rows if r['mission_state'] == 'COMPLETE'), None)
     duration = complete['sim_seconds']-active[0]['sim_seconds'] if complete and active else None
@@ -92,6 +104,8 @@ def audit(path):
         v['reverse_distance_m'] <= (.51 if ':EXIT_' in k else .09) for k, v in motion.items())
     checks['slow_rack_exits'] = all(v['max_reverse_m_s'] <= .09 for k, v in motion.items() if ':EXIT_' in k)
     report = {'passed': all(checks.values()), 'checks': checks, 'engine': 'Gazebo Harmonic 8 / DART',
+              'drive_mode': drive_mode, 'command_metrics': summary.get('command_metrics', {}),
+              'rejected_velocity_commands': summary.get('rejected_velocity_commands'),
               'task_simulation_seconds': duration, 'process_wall_seconds': observer['wall_seconds'],
               'travel_distance_m': distance, 'minimum_cargo_ground_clearance_m': minimum_lift,
               'maximum_tilt_rad': max_tilt, 'maximum_trace_gap_s': max(gaps, default=None),
@@ -102,13 +116,17 @@ def audit(path):
               'limitations': ['Unmeasured friction, masses, deck thickness, sensor and QR poses.',
                               'Component box collisions and ideal roller friction; equivalent prismatic lift.',
                               'Front lidar retains narrow pillar/cargo shadows; arbitrary new objects in those shadows are not certified.',
+                              'Differential mode restricts commands to vx/wz while retaining CAD mecanum-wheel contact physics.',
+                              'Gazebo transport observations audit the plugin command topic, not plugin receipt acknowledgements. Native Gazebo or direct bridge publishers can bypass adapter admission; detected violations fail this audit but are not blocked inside MecanumDrive.',
                               'Simulation validation does not certify real hardware or course height compliance.']}
     (path/'gazebo_audit.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return report
 
 
 def main():
-    p = argparse.ArgumentParser(); p.add_argument('directory'); args = p.parse_args()
-    report = audit(args.directory)
+    p = argparse.ArgumentParser(); p.add_argument('directory')
+    p.add_argument('--drive-mode', choices=DRIVE_MODES)
+    args = p.parse_args()
+    report = audit(args.directory, drive_mode=args.drive_mode)
     print(json.dumps(report, indent=2))
     raise SystemExit(0 if report['passed'] else 1)

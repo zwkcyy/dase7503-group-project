@@ -1,0 +1,362 @@
+{
+  "date": "2026-11-05",
+  "run_id": "run-20261105T123830Z",
+  "started_at": "2026-11-05T12:38:30.901Z",
+  "ended_at": "2026-11-05T12:40:38.351Z",
+  "scope": "Physical stationary Pi sensors and sampled SSH data reception; not moving robot acceptance",
+  "ethernet_unplugged_verified": true,
+  "data_path": "Pi local ROS -> approximately 1 fps JPEG + actual sampled laser scans and status -> authenticated SSH over Wi-Fi -> Windows",
+  "static_observation_passed": true,
+  "cleanup_passed": true,
+  "ssh_sampled_stream_passed": true,
+  "wireless_packet_loss_resolved": false,
+  "measurement_duration_s": 120.00113923400022,
+  "streams": {
+    "camera": {
+      "count": 3299,
+      "rate_hz": 27.487951425996926,
+      "window_rate_hz": 27.491373486288577,
+      "max_receive_gap_s": 0.13609684699986246,
+      "first_delay_s": 0.012480915000196546,
+      "last_receive_age_s": 0.00895932900129992,
+      "last_stamp_age_s": 0.028147220611572266,
+      "nonmonotonic_stamps": 0
+    },
+    "scan": {
+      "count": 1200,
+      "rate_hz": 9.992435933930677,
+      "window_rate_hz": 9.999893356637251,
+      "max_receive_gap_s": 0.37969408100070723,
+      "first_delay_s": 0.006051828999261488,
+      "last_receive_age_s": 0.004466100001081941,
+      "last_stamp_age_s": 0.10666179656982422,
+      "nonmonotonic_stamps": 0
+    },
+    "raw_odom": {
+      "count": 1200,
+      "rate_hz": 10.000108789673948,
+      "window_rate_hz": 9.999893356637251,
+      "max_receive_gap_s": 0.11160629900041386,
+      "first_delay_s": 0.0567249300002004,
+      "last_receive_age_s": 0.04585917800068273,
+      "last_stamp_age_s": 0.04915738105773926,
+      "nonmonotonic_stamps": 0
+    },
+    "wheel_odom": {
+      "count": 1200,
+      "rate_hz": 10.000023147759983,
+      "window_rate_hz": 9.999893356637251,
+      "max_receive_gap_s": 0.1179022790001909,
+      "first_delay_s": 0.05862827499913692,
+      "last_receive_age_s": 0.04292900000109512,
+      "last_stamp_age_s": 0.04916572570800781,
+      "nonmonotonic_stamps": 0
+    },
+    "imu": {
+      "count": 1200,
+      "rate_hz": 10.000016215956247,
+      "window_rate_hz": 9.999893356637251,
+      "max_receive_gap_s": 0.12217215599957854,
+      "first_delay_s": 0.05958738200024527,
+      "last_receive_age_s": 0.04188678100035759,
+      "last_stamp_age_s": 0.04870438575744629,
+      "nonmonotonic_stamps": 0
+    },
+    "ekf": {
+      "count": 3600,
+      "rate_hz": 30.00056087569836,
+      "window_rate_hz": 29.999680069911754,
+      "max_receive_gap_s": 0.05492931900153053,
+      "first_delay_s": 0.015064793999044923,
+      "last_receive_age_s": 0.021791111001220997,
+      "last_stamp_age_s": 0.02268242835998535,
+      "nonmonotonic_stamps": 0
+    },
+    "bridge_status": {
+      "count": 120,
+      "rate_hz": 0.9999907898831403,
+      "window_rate_hz": 0.9999893356637252,
+      "max_receive_gap_s": 1.0156364730009955,
+      "first_delay_s": 0.9999469609992957,
+      "last_receive_age_s": 0.0002367590004723752,
+      "last_stamp_age_s": null,
+      "nonmonotonic_stamps": 0
+    },
+    "adapter_status": {
+      "count": 240,
+      "rate_hz": 1.9999887636949278,
+      "window_rate_hz": 1.9999786713274503,
+      "max_receive_gap_s": 0.5120679970004858,
+      "first_delay_s": 0.49705640699903597,
+      "last_receive_age_s": 0.0035519540015229722,
+      "last_stamp_age_s": null,
+      "nonmonotonic_stamps": 0
+    }
+  },
+  "peak_feedback": {
+    "raw_odom": {
+      "translation_m_s": 0,
+      "yaw_rad_s": 0
+    },
+    "wheel_odom": {
+      "translation_m_s": 0,
+      "yaw_rad_s": 0
+    },
+    "ekf": {
+      "translation_m_s": 0,
+      "yaw_rad_s": 0.00025468575321451836
+    }
+  },
+  "parameters": {
+    "verified": true,
+    "enable_motion": false,
+    "enable_lift": false,
+    "verified_unix_s": 1793882314.8143244
+  },
+  "commands": {
+    "/cmd_vel_nav": {
+      "received": 0,
+      "nonzero": 0
+    },
+    "/cmd_vel_requested": {
+      "received": 0,
+      "nonzero": 0
+    },
+    "/cmd_vel": {
+      "received": 0,
+      "nonzero": 0
+    },
+    "/ec/cmd_vel": {
+      "received": 0,
+      "nonzero": 0
+    },
+    "/lift_cmd": {
+      "received": 0,
+      "nonzero": 0
+    },
+    "/ec/lift_cmd": {
+      "received": 0,
+      "nonzero": 0
+    }
+  },
+  "ec_final": {
+    "crc_errors": 0,
+    "armed": false,
+    "fault": 0,
+    "open_count": 1
+  },
+  "receiver": {
+    "scan_snapshots": 119,
+    "measuring_snapshots": 118,
+    "bytes": 6750839,
+    "issues": [],
+    "jpeg_previews": 119,
+    "ssh_exit": {
+      "code": 0,
+      "signal": null
+    },
+    "maximum_receive_gap_s": 1.3294870999999984
+  },
+  "network_probes": [
+    {
+      "source": "wifi-initial-ping.json",
+      "sent": 12,
+      "received": 12,
+      "loss_percent": 0,
+      "rtt_min_ms": 6,
+      "rtt_max_ms": 18,
+      "ethernet_still_connected": true
+    },
+    {
+      "source": "run-20261105T203000-ping.json",
+      "duration_s": 135.1702723,
+      "sent": 135,
+      "received": 132,
+      "loss_percent": 2.2222222222222223,
+      "rtt_min_ms": 2.0,
+      "rtt_mean_ms": 7.9772727272727275,
+      "rtt_max_ms": 22.0,
+      "rtt_p95_ms": 16
+    },
+    {
+      "source": "wifi-idle-followup-ping.json",
+      "duration_s": 44.4001221,
+      "sent": 45,
+      "received": 45,
+      "loss_percent": 0.0,
+      "rtt_min_ms": 2.0,
+      "rtt_mean_ms": 8.511111111111111,
+      "rtt_max_ms": 20.0,
+      "rtt_p95_ms": 18
+    },
+    {
+      "source": "run-20261105T123830Z-ping.json",
+      "duration_s": 130.020292,
+      "sent": 130,
+      "received": 128,
+      "loss_percent": 1.5384615384615385,
+      "rtt_min_ms": 4.0,
+      "rtt_mean_ms": 9.9453125,
+      "rtt_max_ms": 80.0,
+      "rtt_p95_ms": 21
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "camera",
+      "pid": 7151,
+      "signals": [
+        "SIGINT"
+      ],
+      "errors": [],
+      "returncode": 0,
+      "normal_exit": true,
+      "forced_sigkill": false,
+      "group_gone": true
+    },
+    {
+      "name": "lidar",
+      "pid": 7152,
+      "signals": [
+        "SIGINT"
+      ],
+      "errors": [],
+      "returncode": 0,
+      "normal_exit": true,
+      "forced_sigkill": false,
+      "group_gone": true
+    },
+    {
+      "name": "ec",
+      "pid": 7153,
+      "signals": [
+        "SIGINT"
+      ],
+      "errors": [],
+      "returncode": 0,
+      "normal_exit": true,
+      "forced_sigkill": false,
+      "group_gone": true
+    },
+    {
+      "name": "ekf",
+      "pid": 7154,
+      "signals": [
+        "SIGINT"
+      ],
+      "errors": [],
+      "returncode": 0,
+      "normal_exit": true,
+      "forced_sigkill": false,
+      "group_gone": true
+    }
+  ],
+  "lidar_restart_after_fix": {
+    "time": "2026-11-05T20:38:02.875977+08:00",
+    "passed": true,
+    "cycles": [
+      {
+        "cycle": 1,
+        "fresh_scan_count": 20,
+        "minimum_finite_points": 374,
+        "exit_code": 0,
+        "forced_termination": false,
+        "group_gone": true,
+        "passed": true
+      },
+      {
+        "cycle": 2,
+        "fresh_scan_count": 20,
+        "minimum_finite_points": 377,
+        "exit_code": 0,
+        "forced_termination": false,
+        "group_gone": true,
+        "passed": true
+      },
+      {
+        "cycle": 3,
+        "fresh_scan_count": 20,
+        "minimum_finite_points": 377,
+        "exit_code": 0,
+        "forced_termination": false,
+        "group_gone": true,
+        "passed": true
+      },
+      {
+        "cycle": 4,
+        "fresh_scan_count": 20,
+        "minimum_finite_points": 379,
+        "exit_code": 0,
+        "forced_termination": false,
+        "group_gone": true,
+        "passed": true
+      },
+      {
+        "cycle": 5,
+        "fresh_scan_count": 20,
+        "minimum_finite_points": 383,
+        "exit_code": 0,
+        "forced_termination": false,
+        "group_gone": true,
+        "passed": true
+      }
+    ],
+    "error": null,
+    "chassis_commands_sent": false
+  },
+  "initial_run": {
+    "normal_cleanup_passed": false,
+    "original_report_missing_exit_code_criterion": true,
+    "failure": "FD_SETSIZE abort during shutdown; close-before-join race",
+    "observation_passed": true,
+    "corrected_audit": "output/pi_wireless_validation_20261105/run-teardown-audit.json",
+    "lidar_exit_code": 250,
+    "overall_passed": false
+  },
+  "not_validated": [
+    "Camera installation, QR content or calibration in this wireless round",
+    "Ground minimum speed, wheel directions, braking distance or lifting",
+    "Wireless coverage while moving and loss-of-link stopping",
+    "Full-rate raw ROS DDS image transfer",
+    "Differential full mission and automatic rack delivery acceptance",
+    "Injected serial disconnect, maximum backlog or read-error scenarios"
+  ],
+  "operator_setup": {
+    "hdmi_still_connected": true,
+    "camera_installation_deferred_to_next_day": true,
+    "camera_temporary_inside_chassis": true,
+    "lidar_external_power": true
+  },
+  "stopped_for_today": true,
+  "motor_or_lift_actions_started": false,
+  "evidence_sha256": [
+    {
+      "local_source": "output/pi_wireless_validation_20261105/run-20261105T123830Z/receiver-report.json",
+      "sha256": "00e151118fbd993b01e3d171cb73d646e6f576388a5a6fafd775141ef994b445"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/run-20261105T123830Z/pi/report.json",
+      "sha256": "b2e723b414a32237e808d2bcf451dcbbc77b895348c74564c0aac8df8cd98bf3"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/run-20261105T123830Z/pi/final-state.json",
+      "sha256": "49b18ac9336476e90f87d1139b139ac79d2fbf807e054c1a8e40f5fd1b8f14b6"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/run-20261105T123830Z-ping.json",
+      "sha256": "ff5498288d3c1a2f84ca175cdc31cb242decb8d07901e8b8af9a5a13d79e2368"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/run-teardown-audit.json",
+      "sha256": "b7816e547883f138a128abb24e5e22240f0bb4d96a0b90aad3b804eaa9f5be05"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/pi-support/lidar-restart-check/report.json",
+      "sha256": "2581a92d5aae16a2235b030af062974a95191f7d3c170263294e5395bcd18149"
+    },
+    {
+      "local_source": "output/pi_wireless_validation_20261105/lidar-final-patch-manifest.json",
+      "sha256": "3c8d09764407302ecb445f8d2890c9de743986dc41c31e25189cdff1bf78dc89"
+    }
+  ]
+}

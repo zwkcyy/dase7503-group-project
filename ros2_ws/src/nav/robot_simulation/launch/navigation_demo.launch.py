@@ -21,9 +21,11 @@ def generate_launch_description():
             initial = world.get('localization_pose', world['initial_pose'])
         return [
             Node(package='robot_simulation', executable='planar_base', output='screen',
-                 parameters=[{'geometry_file': geometry, 'world_file': world_file}]),
+                  parameters=[{'geometry_file': geometry, 'world_file': world_file,
+                               'drive_mode': LaunchConfiguration('drive_mode')}]),
             IncludeLaunchDescription(str(nav / 'launch/bringup.launch.py'), launch_arguments={
                 'geometry_file': geometry, 'allow_unconfirmed_geometry': 'true', 'initial_loaded': 'false',
+                 'drive_mode': LaunchConfiguration('drive_mode'),
                 'map_file': LaunchConfiguration('map_file'),
                 'params_file': LaunchConfiguration('params_file'),
                 'rviz': LaunchConfiguration('rviz'), 'initial_x': str(initial[0]),
@@ -35,6 +37,7 @@ def generate_launch_description():
         DeclareLaunchArgument('map_file', default_value=''),
         DeclareLaunchArgument('params_file', default_value=str(nav/'config/nav2_params.yaml')),
         DeclareLaunchArgument('domain_id', default_value='75'),
+        DeclareLaunchArgument('drive_mode', default_value='omni', choices=['omni', 'differential']),
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('mission', default_value='false'),
         OpaqueFunction(function=validate_domain),

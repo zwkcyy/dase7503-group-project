@@ -1,0 +1,76 @@
+diff --git a/sdk/src/ord_lidar_driver.cpp b/sdk/src/ord_lidar_driver.cpp
+--- a/sdk/src/ord_lidar_driver.cpp
++++ b/sdk/src/ord_lidar_driver.cpp
+@@ -1,3 +1,4 @@
++#include <algorithm>
+ #include <math.h>
+ #include "ord_lidar_driver.h"
+ #include <signal.h>
+@@ -373,10 +374,17 @@
+ 		{
+ 			// retval = lidar_ptr->serial_->available();
+ 			retval = lidar_ptr->serial_->waitfordata(wait_size, 500, &recv_size);
++			if (lidar_ptr->rx_thread_exit_flag_.load())
++			{
++				break;
++			}
+ 			if (retval == 0)
+ 			{
+ 				lidar_ptr->valid_data_ = 1;
+-				actual_read = lidar_ptr->serial_->readData(readbuf, recv_size);
++				// FIONREAD reports the entire queued backlog, not this buffer's capacity.
++				// Leave excess bytes queued for the next iteration instead of overflowing.
++				const size_t read_size = std::min(recv_size, sizeof(readbuf));
++				actual_read = lidar_ptr->serial_->readData(readbuf, read_size);
+ 				if (actual_read > 0)
+ 				{
+ 					switch (lidar_ptr->model_)
+@@ -492,19 +500,22 @@
+ 	void OrdlidarDriver::Disconnect()
+ 	{
+ 		rx_thread_exit_flag_ = true;
+-		if (serial_)
+-		{
+-			if (serial_->isOpen())
+-			{
+-				serial_->closePort();
+-			}
+-		}
+-
+-		if ((rx_thread_ != nullptr) && rx_thread_->joinable())
+-		{
+-			rx_thread_->join();
++		// RX may still be inside waitfordata()/readData(). Keep its descriptor
++		// open until it exits; closing first races with FD_SET/FD_ISSET on Unix.
++		// waitfordata has a 500 ms deadline and RX rechecks the stop flag after it.
++		if (rx_thread_ != nullptr)
++		{
++			if (rx_thread_->joinable())
++			{
++				rx_thread_->join();
++			}
+ 			delete rx_thread_;
+ 			rx_thread_ = NULL;
++		}
++
++		if (serial_ && serial_->isOpen())
++		{
++			serial_->closePort();
+ 		}
+ 
+ 		ResetFullScanReady();
+diff --git a/sdk/core/serial/impl/unix/unix_serial.cpp b/sdk/core/serial/impl/unix/unix_serial.cpp
+--- a/sdk/core/serial/impl/unix/unix_serial.cpp
++++ b/sdk/core/serial/impl/unix/unix_serial.cpp
+@@ -983,7 +983,10 @@
+   if (!is_open_) {
+     return 0;
+   }
+-  size_t bytes_read = ::read(fd_, buf, size);
++  // read() returns -1 for errors (including nonblocking EAGAIN). Never turn
++  // that into a huge unsigned length subsequently passed to the packet parser.
++  const ssize_t result = ::read(fd_, buf, size);
++  size_t bytes_read = result > 0 ? static_cast<size_t>(result) : 0;
+   #if 0
+   size_t bytes_read = 0;
+ 

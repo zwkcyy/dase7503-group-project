@@ -176,4 +176,9 @@ def decode(frame):
         return 'lift_state', LiftState(data[0])
     if packet_type == TYPE_STATUS:
         return 'status', StatusFrame(data[0], data[1])
-    return 'ack', Ack(data[0], data[1])
+    if packet_type == TYPE_ACK:
+        return 'ack', Ack(data[0], data[1])
+    # A valid frame can still travel in the wrong direction (for example a
+    # serial echo). Downlink payloads are neither telemetry nor acknowledgments.
+    # Some have fewer than two bytes, so indexing them as an ACK also crashes.
+    return None
