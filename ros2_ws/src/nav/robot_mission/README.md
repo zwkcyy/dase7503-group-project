@@ -100,3 +100,36 @@ See [the NAV/VI regression suite](../../common/tests/README.md) for a complete
 four-rack sequence, timeout, delayed-response and failure-path checks without ROS.
 Actual ROS discovery, QoS, action cancellation and lift timing must also be
 checked on ROS 2 Jazzy before moving the robot.
+
+## Relative moves from the main controller
+
+With ROS initialized, call `robot_mission.relative_motion.move(direction, amount)`
+from the sequential mission control thread. Each call waits for a terminal Nav2
+result and raises on failure. Distances are positive metres. Angles are positive
+degrees, with left counterclockwise viewed from above. A caller can pass a
+`threading.Event` as `cancel` and a server deadline as `timeout_s` (default 30).
+
+```python
+from robot_mission.relative_motion import move
+
+move('forward', 0.20)
+move('left', 90)
+```
+
+The same entry point can be called as `ros2 run robot_mission relative_motion
+backward 0.10` or `ros2 run robot_mission relative_motion right 45`.
+Use one motion owner at a time. Wait for the previous command to finish before
+starting another action or a delivery mission. Ctrl+C requests cancellation.
+
+DriveOnHeading, BackUp and Spin use the change in robot pose in the local odom
+frame to stop at the target. Keep localization, Nav2 behaviors, the velocity
+smoother and the final motion guard running. Use the normal hardware bringup
+and arming procedure. A successful action reports an odometry-based result.
+
+Translation requests use 0.5 m/s. To select a 2 rad/s spin ceiling and matching
+smoother limits, add `relative_motion_limits:=true` to the differential
+`robot_navigation bringup.launch.py`, `robot_bringup system.launch.py`, or
+`robot_bringup cad_ec.launch.py` arguments. This profile affects every user
+of that smoother and behavior server for the session. Short moves, acceleration,
+braking, obstacle checks and the mission-phase reverse limits can reduce the
+effective speed or prevent completion. The default navigation profile is unchanged.

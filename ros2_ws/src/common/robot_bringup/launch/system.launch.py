@@ -21,7 +21,7 @@ def generate_launch_description():
                 'mission_file': str(Path(get_package_share_directory('robot_mission'))/'config/mission_params.yaml'),
                 'start_camera': 'false', 'show_results': 'false', 'rviz': 'false',
                 'image_topic': '/camera/image_raw', 'initial_loaded': 'false',
-                'drive_mode': 'differential', 'map_file': '',
+                'drive_mode': 'differential', 'relative_motion_limits': 'false', 'map_file': '',
                 'ekf_params_file': str(bringup/'config/ekf_ec_10hz.yaml'),
                 'output_dir': str(Path.home()/'.ros/nav_vi_runs'/('robot-'+datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6]))}
 
@@ -42,7 +42,7 @@ def generate_launch_description():
         actions = [
             IncludeLaunchDescription(str(nav/'launch/bringup.launch.py'), launch_arguments={key: args[key] for key in
                 ('geometry_file', 'initial_loaded', 'initial_x', 'initial_y', 'initial_yaw', 'rviz',
-                 'drive_mode', 'map_file', 'ekf_params_file')}.items()),
+                 'drive_mode', 'relative_motion_limits', 'map_file', 'ekf_params_file')}.items()),
             IncludeLaunchDescription(str(vision/'launch/vision_bringup.launch.py'), launch_arguments={
                 **{key: args[key] for key in ('start_camera', 'show_results', 'image_topic')},
                 'evidence_dir': str(path/'qr'), 'evidence_source': 'external_camera_unverified',

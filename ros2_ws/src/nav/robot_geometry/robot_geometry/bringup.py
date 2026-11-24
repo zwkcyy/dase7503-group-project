@@ -20,7 +20,7 @@ def generate_launch_description():
     defaults = {'geometry_file': str(description / 'config/mechanical.yaml'),
                 'allow_unconfirmed_geometry': 'false', 'initial_loaded': 'true',
                 'empty_only': 'false',
-                'drive_mode': 'omni',
+                'drive_mode': 'omni', 'relative_motion_limits': 'false',
                 'ekf_params_file': str(nav / 'config/ekf.yaml'),
                 'params_file': str(nav / 'config/nav2_params.yaml'),
                 'map_file': '',
@@ -49,6 +49,15 @@ def generate_launch_description():
             smoother = params['velocity_smoother']['ros__parameters']
             smoother.update(max_velocity=[0.15, 0.0, 0.4], min_velocity=[-0.08, 0.0, -0.4])
             params['motion_guard']['ros__parameters']['allow_lateral_motion'] = False
+        if boolean('relative_motion_limits'):
+            if args['drive_mode'] != 'differential':
+                raise ValueError('relative_motion_limits requires differential drive')
+            smoother = params['velocity_smoother']['ros__parameters']
+            smoother.update(max_velocity=[0.5, 0.0, 2.0], min_velocity=[-0.5, 0.0, -2.0])
+            # At 0.5 m/s, a 10 Hz behavior cycle can add 5 cm after crossing
+            # a short target, even with fresh odometry.
+            params['behavior_server']['ros__parameters'].update(
+                cycle_frequency=40.0, max_rotational_vel=2.0)
         if args['map_file']:
             map_file = Path(args['map_file']).expanduser().resolve(strict=True)
             params['map_server']['ros__parameters']['yaml_filename'] = str(map_file)
