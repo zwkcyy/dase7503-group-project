@@ -126,10 +126,9 @@ frame to stop at the target. Keep localization, Nav2 behaviors, the velocity
 smoother and the final motion guard running. Use the normal hardware bringup
 and arming procedure. A successful action reports an odometry-based result.
 
-Translation requests use 0.5 m/s. To select a 2 rad/s spin ceiling and matching
-smoother limits, add `relative_motion_limits:=true` to the differential
-`robot_navigation bringup.launch.py`, `robot_bringup system.launch.py`, or
-`robot_bringup cad_ec.launch.py` arguments. This profile affects every user
-of that smoother and behavior server for the session. Short moves, acceleration,
-braking, obstacle checks and the mission-phase reverse limits can reduce the
-effective speed or prevent completion. The default navigation profile is unchanged.
+Translation requests use 0.5 m/s. Add `relative_motion_limits:=true` to the
+differential navigation, CAD/EC or full-system launch arguments for direct
+velocity requests to the motion guard. The smoother is omitted from the ROS
+graph and lifecycle manager in this mode. Spin uses a 2 rad/s ceiling.
+The motion guard can stop the request for obstacles, stale inputs or mission-phase
+limits. The default navigation profile continues to use the velocity smoother.

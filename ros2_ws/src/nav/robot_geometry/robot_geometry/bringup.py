@@ -52,8 +52,6 @@ def generate_launch_description():
         if boolean('relative_motion_limits'):
             if args['drive_mode'] != 'differential':
                 raise ValueError('relative_motion_limits requires differential drive')
-            smoother = params['velocity_smoother']['ros__parameters']
-            smoother.update(max_velocity=[0.5, 0.0, 2.0], min_velocity=[-0.5, 0.0, -2.0])
             # At 0.5 m/s, a 10 Hz behavior cycle can add 5 cm after crossing
             # a short target, even with fresh odometry.
             params['behavior_server']['ros__parameters'].update(
@@ -78,7 +76,8 @@ def generate_launch_description():
                               'ekf_params_file': args['ekf_params_file'],
                               **{key: args[key] for key in ('initial_x', 'initial_y', 'initial_yaw')}}.items()))
         actions.append(IncludeLaunchDescription(str(nav / 'launch/navigation.launch.py'),
-                                               launch_arguments=common.items()))
+                                               launch_arguments={**common, 'relative_motion_limits':
+                                                   str(boolean('relative_motion_limits')).lower()}.items()))
         actions.append(Node(package='robot_geometry', executable='load_envelope', output='screen',
             parameters=[{'geometry_file': args['geometry_file'],
                          'allow_unconfirmed_geometry': boolean('allow_unconfirmed_geometry'),

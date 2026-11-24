@@ -3,10 +3,12 @@
 Command velocity chain:
   controller_server / behavior_server -> /cmd_vel_nav
   -> velocity_smoother -> /cmd_vel_requested -> motion_guard -> /cmd_vel
+Relative moves feed /cmd_vel_nav directly into motion_guard.
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, SetEnvironmentVariable
+from launch.actions import DeclareLaunchArgument, GroupAction, OpaqueFunction, SetEnvironmentVariable
+from launch.conditions import UnlessCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node, SetParameter
 from launch_ros.descriptions import ParameterFile
@@ -14,8 +16,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
-def generate_launch_description():
-    pkg_share = FindPackageShare('robot_navigation')
+def navigation_nodes(context):
+    direct = LaunchConfiguration('relative_motion_limits').perform(context) == 'true'
 
     use_sim_time = LaunchConfiguration('use_sim_time')
     params_file = LaunchConfiguration('params_file')
@@ -28,25 +30,10 @@ def generate_launch_description():
         'controller_server',
         'planner_server',
         'behavior_server',
-        'velocity_smoother',
+        *([] if direct else ['velocity_smoother']),
         'bt_navigator',
     ]
     ros_args = ['--ros-args', '--log-level', log_level]
-
-    declare_args = [
-        DeclareLaunchArgument(
-            'use_sim_time', default_value='false',
-            description='Use simulation clock if true'),
-        DeclareLaunchArgument(
-            'params_file',
-            default_value=PathJoinSubstitution([pkg_share, 'config', 'nav2_params.yaml']),
-            description='Nav2 parameter file'),
-        DeclareLaunchArgument(
-            'autostart', default_value='true',
-            description='Automatically configure and activate the lifecycle nodes'),
-        DeclareLaunchArgument(
-            'log_level', default_value='info', description='Log level'),
-    ]
 
     nodes = GroupAction([
         SetParameter('use_sim_time', use_sim_time),
@@ -78,6 +65,7 @@ def generate_launch_description():
             remappings=[('cmd_vel', 'cmd_vel_nav')],
         ),
         Node(
+            condition=UnlessCondition(LaunchConfiguration('relative_motion_limits')),
             package='nav2_velocity_smoother',
             executable='velocity_smoother',
             name='velocity_smoother',
@@ -87,7 +75,8 @@ def generate_launch_description():
             # Each name is remapped once, so the output does not chain into the input
             remappings=[('cmd_vel', 'cmd_vel_nav'), ('cmd_vel_smoothed', 'cmd_vel_requested')],
         ),
-        Node(package='robot_geometry', executable='motion_guard', output='screen', parameters=[nav2_params]),
+        Node(package='robot_geometry', executable='motion_guard', output='screen', parameters=[nav2_params],
+             remappings=[('/cmd_vel_requested', '/cmd_vel_nav')] if direct else []),
         Node(
             package='nav2_bt_navigator',
             executable='bt_navigator',
@@ -109,8 +98,29 @@ def generate_launch_description():
         ),
     ])
 
+    return [nodes]
+
+
+def generate_launch_description():
+    pkg_share = FindPackageShare('robot_navigation')
+    declare_args = [
+        DeclareLaunchArgument('relative_motion_limits', default_value='false', choices=['true', 'false']),
+        DeclareLaunchArgument(
+            'use_sim_time', default_value='false',
+            description='Use simulation clock if true'),
+        DeclareLaunchArgument(
+            'params_file',
+            default_value=PathJoinSubstitution([pkg_share, 'config', 'nav2_params.yaml']),
+            description='Nav2 parameter file'),
+        DeclareLaunchArgument(
+            'autostart', default_value='true',
+            description='Automatically configure and activate the lifecycle nodes'),
+        DeclareLaunchArgument(
+            'log_level', default_value='info', description='Log level'),
+    ]
+
     return LaunchDescription(
         [SetEnvironmentVariable('RCUTILS_LOGGING_BUFFERED_STREAM', '1')]
         + declare_args
-        + [nodes]
+        + [OpaqueFunction(function=navigation_nodes)]
     )
