@@ -10,6 +10,7 @@ import rclpy
 from action_msgs.msg import GoalStatus
 from nav2_msgs.action import BackUp, DriveOnHeading, Spin
 from rclpy.action import ActionClient
+from rclpy.executors import SingleThreadedExecutor
 from rclpy.signals import SignalHandlerOptions
 
 
@@ -46,6 +47,8 @@ def move(direction, amount, *, timeout_s=30, cancel=None, namespace=None):
     """
     name, action, goal = make_goal(direction, amount, timeout_s)
     node = rclpy.create_node('relative_motion_client', namespace=namespace)
+    executor = SingleThreadedExecutor(context=node.context)
+    executor.add_node(node)
     client = ActionClient(node, action, name)
     try:
         if not client.wait_for_server(timeout_sec=3.0):
@@ -53,7 +56,7 @@ def move(direction, amount, *, timeout_s=30, cancel=None, namespace=None):
         if cancel is not None and cancel.is_set():
             raise RuntimeError('Cancelled before sending the goal')
         request = client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(node, request, timeout_sec=5.0)
+        executor.spin_until_future_complete(request, timeout_sec=5.0)
         if not request.done():
             raise RuntimeError(f'{name} acceptance unknown. Check the server before retrying.')
         handle = request.result()
@@ -64,11 +67,11 @@ def move(direction, amount, *, timeout_s=30, cancel=None, namespace=None):
         while not result.done() and time.monotonic() < deadline and rclpy.ok():
             if cancel is not None and cancel.is_set():
                 break
-            rclpy.spin_once(node, timeout_sec=0.05)
+            executor.spin_once(timeout_sec=0.05)
         if not result.done():
             cancellation = handle.cancel_goal_async()
-            rclpy.spin_until_future_complete(node, cancellation, timeout_sec=2.0)
-            rclpy.spin_until_future_complete(node, result, timeout_sec=2.0)
+            executor.spin_until_future_complete(cancellation, timeout_sec=2.0)
+            executor.spin_until_future_complete(result, timeout_sec=2.0)
         if not result.done():
             raise RuntimeError(f'{name} termination unconfirmed. Check the server before retrying.')
         response = result.result()
@@ -77,6 +80,8 @@ def move(direction, amount, *, timeout_s=30, cancel=None, namespace=None):
                                f'error={response.result.error_code}: {response.result.error_msg}')
         return response.result
     finally:
+        executor.remove_node(node)
+        executor.shutdown()
         client.destroy()
         node.destroy_node()
 
