@@ -10,5 +10,6 @@ setup(name='robot_bringup', version='0.1.0', packages=['robot_bringup'],
       install_requires=['setuptools'], entry_points={'console_scripts': [
           'preflight = robot_bringup.preflight:main',
           'ec_adapter = robot_bringup.ec_adapter:main',
+          'lift_keyboard = robot_bringup.lift_keyboard:main',
           'bench_motion = robot_bringup.bench_motion:main',
           'run_recorder = robot_bringup.run_recorder:main']})
