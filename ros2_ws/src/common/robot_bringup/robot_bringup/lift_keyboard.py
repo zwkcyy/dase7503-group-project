@@ -15,8 +15,8 @@ ENDPOINTS = {1: '上位', 0: '下位'}
 
 
 class LiftKeyboard(Node):
-    def __init__(self):
-        super().__init__('lift_keyboard')
+    def __init__(self, node_name='lift_keyboard'):
+        super().__init__(node_name)
         self.commands = self.create_publisher(Int8, '/lift_cmd', 10)
         # Only the latest adapter snapshot is relevant when an operator presses a key.
         self.create_subscription(String, '/ec_adapter/status', self.on_status, 1)
@@ -61,32 +61,36 @@ class LiftKeyboard(Node):
         self.commands.publish(Int8(data=target))
         self.notice = '已请求' + ('升起' if target else '降下')
 
+    def screen_lines(self):
+        return (
+            '托板升降    9 升起    0 降下    Q 退出',
+            '同一方向需要重试时，先按空格，再按 9 或 0。',
+            '托板：' + (self.availability() or '就绪'),
+            '操作：' + self.notice,
+            'EC 上次报告的位置：' + ENDPOINTS.get(self.status.get('reported_lift_target'), '未知'),
+            '适配器反馈：' + (self.status.get('lift_result') or '暂无'),
+        )
+
     def run_terminal(self, screen):
         screen.keypad(True)
-        screen.timeout(100)
+        screen.nodelay(True)
+        curses.set_escdelay(25)
+        next_draw = 0.
         while rclpy.ok():
-            rclpy.spin_once(self, timeout_sec=0)
-            lines = (
-                '托板升降    9 升起    0 降下    Q 退出',
-                '同一方向需要重试时，先按空格，再按 9 或 0。',
-                '连接：' + (self.availability() or '就绪'),
-                '操作：' + self.notice,
-                'EC 上次报告的位置：' + ENDPOINTS.get(self.status.get('reported_lift_target'), '未知'),
-                '适配器反馈：' + (self.status.get('lift_result') or '暂无'),
-            )
-            screen.erase()
-            try:
-                screen.addstr(0, 0, '\n'.join(lines))
-            except curses.error:
-                # A small terminal can fill its bottom-right cell while drawing.
-                pass
-            screen.refresh()
-            key = screen.getch()
-            if key in (ord('q'), ord('Q'), 3):
-                return
-            if key in TARGETS:
-                rclpy.spin_once(self, timeout_sec=0)
-            self.handle_key(key)
+            rclpy.spin_once(self, timeout_sec=.01)
+            while (key := screen.getch()) != curses.ERR:
+                if key in (ord('q'), ord('Q'), 3):
+                    return
+                self.handle_key(key)
+            if time.monotonic() >= next_draw:
+                screen.erase()
+                try:
+                    screen.addstr(0, 0, '\n'.join(self.screen_lines()))
+                except curses.error:
+                    # The terminal can fill its bottom-right cell while drawing.
+                    pass
+                screen.refresh()
+                next_draw = time.monotonic() + .1
 
 
 def main(args=None):
