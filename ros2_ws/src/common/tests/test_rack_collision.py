@@ -26,7 +26,7 @@ class RackCollisionTests(unittest.TestCase):
         self.a = self.model.racks[0]
 
     def test_four_real_racks_and_sixteen_legs(self):
-        self.assertEqual(len(self.model.floor_polygons(self.world['initial_pose'])), 16)
+        self.assertEqual(len(self.model.floor_polygons(self.world['initial_pose'])), 16 + len(self.model.static))
         self.assertGreater(self.model.clearance(self.world['initial_pose'])[0], 0)
 
     def test_body_can_enter_aligned_but_hits_leg_when_offset(self):
@@ -54,7 +54,7 @@ class RackCollisionTests(unittest.TestCase):
 
     def test_lift_removes_only_attached_rack_from_floor_laser(self):
         self.model.lift(self.a['pose'], 'A')
-        self.assertEqual(len(self.model.floor_polygons(self.a['pose'])), 12)
+        self.assertEqual(len(self.model.floor_polygons(self.a['pose'])), 12 + len(self.model.static))
         with self.assertRaises(ValueError):
             self.model.lift(self.model.racks[1]['pose'], 'B')
 
@@ -69,12 +69,13 @@ class RackCollisionTests(unittest.TestCase):
 
     def test_drop_restores_legs_at_actual_location_without_snapping(self):
         self.model.lift(self.a['pose'], 'A')
-        actual = [.225, .615, math.pi]
+        x, y, yaw = self.a['destination']
+        actual = [x+.005, y+.005, yaw]
         self.model.lower(actual, 'A')
         self.assertEqual(self.a['pose'], actual)
         self.assertEqual(self.a['state'], 'delivered')
-        self.assertEqual(len(self.model.floor_polygons(actual)), 16)
-        self.assertEqual(self.model.clearance([.225, .695, math.pi])[0], 0.)
+        self.assertEqual(len(self.model.floor_polygons(actual)), 16 + len(self.model.static))
+        self.assertEqual(self.model.clearance([actual[0], actual[1]+.08, yaw])[0], 0.)
 
     def test_dropped_rack_is_obstacle_for_later_cargo(self):
         self.model.lift(self.a['pose'], 'A')

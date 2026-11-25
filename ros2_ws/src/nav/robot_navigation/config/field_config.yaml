@@ -22,6 +22,11 @@ zones:
   start: [2420, 600, 3020, 1400]
   destination: [0, 300, 800, 1700]
 
+# 150 mm QR bases inside their zones, sharing the start upper-left / destination lower-left corners.
+qr_posts_mm:
+  START: [2420, 600, 2570, 750]
+  END: [650, 300, 800, 450]
+
 # NAV placement convention: centre of the start zone, facing the destination.
 # Only use when the actual robot is placed at this pose; this is not localisation.
 nav_start:

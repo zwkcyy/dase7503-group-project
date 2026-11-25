@@ -38,7 +38,8 @@ def generate_launch_description():
                   parameters=[{'geometry_file': LaunchConfiguration('geometry_file'),
                                'drive_mode': LaunchConfiguration('drive_mode')}]),
             Node(package='robot_simulation', executable='mission_camera', output='screen', parameters=[{
-                'mission_file': mission_file, 'scenario': LaunchConfiguration('image_scenario')}]),
+                'mission_file': mission_file, 'world_file': LaunchConfiguration('world_file'),
+                'geometry_file': LaunchConfiguration('geometry_file'), 'scenario': LaunchConfiguration('image_scenario')}]),
             Node(package='robot_vision', executable='qr_detector_node', output='screen', parameters=[{
                 'evidence_dir': str(path/'qr'), 'evidence_source': 'synthetic_task_images',
                 'log_file': str(path/'qr_scan.csv')}]),

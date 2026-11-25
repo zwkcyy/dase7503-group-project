@@ -22,10 +22,6 @@ camera_hfov_rad: 1.4
 camera_hz: 10.0
 qr_size_mm: 70.0
 qr_centre_height_mm: 150.0
-start_qr_x_mm: 2400.0
-start_qr_y_mm: 1100.0
-end_qr_size_mm: 100.0
-end_qr_centre_height_mm: 180.0
 laser_x_mm: 145.0  # Proposed forward level mounting outside the saved CAD body.
 # Proposed scan plane clears the board (71.884 mm) below the upper plate
 # (104.883 mm). This is not a surveyed physical mounting coordinate.

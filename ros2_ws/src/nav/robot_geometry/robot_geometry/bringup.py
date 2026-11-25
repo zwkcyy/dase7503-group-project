@@ -20,7 +20,7 @@ def generate_launch_description():
     defaults = {'geometry_file': str(description / 'config/mechanical.yaml'),
                 'allow_unconfirmed_geometry': 'false', 'initial_loaded': 'true',
                 'empty_only': 'false',
-                'drive_mode': 'omni',
+                'drive_mode': 'omni', 'relative_motion_limits': 'false',
                 'ekf_params_file': str(nav / 'config/ekf.yaml'),
                 'params_file': str(nav / 'config/nav2_params.yaml'),
                 'map_file': '',
@@ -49,6 +49,13 @@ def generate_launch_description():
             smoother = params['velocity_smoother']['ros__parameters']
             smoother.update(max_velocity=[0.15, 0.0, 0.4], min_velocity=[-0.08, 0.0, -0.4])
             params['motion_guard']['ros__parameters']['allow_lateral_motion'] = False
+        if boolean('relative_motion_limits'):
+            if args['drive_mode'] != 'differential':
+                raise ValueError('relative_motion_limits requires differential drive')
+            # At 0.5 m/s, a 10 Hz behavior cycle can add 5 cm after crossing
+            # a short target, even with fresh odometry.
+            params['behavior_server']['ros__parameters'].update(
+                cycle_frequency=40.0, max_rotational_vel=2.0)
         if args['map_file']:
             map_file = Path(args['map_file']).expanduser().resolve(strict=True)
             params['map_server']['ros__parameters']['yaml_filename'] = str(map_file)
@@ -69,7 +76,8 @@ def generate_launch_description():
                               'ekf_params_file': args['ekf_params_file'],
                               **{key: args[key] for key in ('initial_x', 'initial_y', 'initial_yaw')}}.items()))
         actions.append(IncludeLaunchDescription(str(nav / 'launch/navigation.launch.py'),
-                                               launch_arguments=common.items()))
+                                               launch_arguments={**common, 'relative_motion_limits':
+                                                   str(boolean('relative_motion_limits')).lower()}.items()))
         actions.append(Node(package='robot_geometry', executable='load_envelope', output='screen',
             parameters=[{'geometry_file': args['geometry_file'],
                          'allow_unconfirmed_geometry': boolean('allow_unconfirmed_geometry'),

@@ -270,7 +270,7 @@ def generate(directory, scene_file=None, physics_file=None):
         raise ValueError('Physics parameters must be finite and nonnegative')
     for key in ('physics_step_s', 'real_time_factor', 'rack_mass_kg', 'rack_height_mm', 'rack_deck_thickness_mm',
                 'lift_stroke_mm', 'lift_speed_mm_s', 'lift_force_limit_n', 'lift_kp', 'camera_hz',
-                'camera_width', 'camera_height', 'camera_hfov_rad', 'qr_size_mm', 'end_qr_size_mm'):
+                'camera_width', 'camera_height', 'camera_hfov_rad', 'qr_size_mm'):
         if settings[key] <= 0:
             raise ValueError(f'{key} must be positive')
     if not .0001 <= settings['physics_step_s'] <= .002:
@@ -309,16 +309,24 @@ def generate(directory, scene_file=None, physics_file=None):
     for i, bounds in enumerate(scene['obstacles_mm']):
         x0, y0, x1, y1 = [v/1000 for v in bounds]
         box(floor, f'obstacle_{i}', [x1-x0, y1-y0, h], [(x0+x1)/2, (y0+y1)/2, h/2, 0, 0, 0], [.6, .4, .2, 1])
-    qsize, qheight = settings['qr_size_mm']/1000, settings['qr_centre_height_mm']/1000
-    sx, sy = settings['start_qr_x_mm']/1000, settings['start_qr_y_mm']/1000
-    marker(floor, 'start_qr', 'START', [sx+.002, sy, qheight, 0, 0, 0], qsize, assets)
-    box(floor, 'start_qr_panel', [.003, qsize, qsize], [sx, sy, qheight, 0, 0, 0], [.9, .9, .9, 1])
-    box(floor, 'start_qr_post', [.02, .02, qheight-qsize/2], [sx, sy, (qheight-qsize/2)/2, 0, 0, 0], [.2, .5, .2, 1])
+    qsize = settings['qr_size_mm']/1000
+    for payload, bounds in scene.get('qr_posts_mm', {}).items():
+        x0, y0, x1, y1 = [v/1000 for v in bounds]
+        cx, cy = (x0+x1)/2, (y0+y1)/2
+        name = payload.lower()+'_qr'
+        face = scene['qr_faces'][payload]
+        width, elevation, yaw = face['width_mm']/1000, face['height_mm']/1000, face['yaw_rad']
+        base_height, stem_width = .025, .055
+        colour = [.16, .46, .70, 1] if payload == 'START' else [.92, .40, .10, 1]
+        box(floor, name+'_base', [x1-x0, y1-y0, base_height], [cx, cy, base_height/2, 0, 0, 0], colour)
+        stem_top = elevation-width/2
+        box(floor, name+'_post', [stem_width, stem_width, stem_top-base_height],
+            [cx, cy, (stem_top+base_height)/2, 0, 0, 0], colour)
+        box(floor, name+'_panel', [.003, width, width],
+            [cx-.002*math.cos(yaw), cy-.002*math.sin(yaw), elevation, 0, 0, yaw], colour)
+        marker(floor, name, payload, [cx, cy, elevation, 0, 0, yaw], width, assets)
     floor_label(floor, 'START', [2.85, 1.], assets, (.17, .46, .7))
     floor_label(floor, 'DESTINATION', [.4, 1.], assets, (.34, .58, .22))
-    for i, y in enumerate((.61, 1.39)):
-        marker(floor, f'end_qr_{i}', 'END', [.001, y, settings['end_qr_centre_height_mm']/1000, 0, 0, 0],
-               settings['end_qr_size_mm']/1000, assets)
     depth, width, leg = [scene['rack_geometry_mm'][k]/1000 for k in ('depth', 'width', 'leg')]
     height, thickness = settings['rack_height_mm']/1000, settings['rack_deck_thickness_mm']/1000
     physical_poses = {r['label']: r['pose'] for r in world_config(scene)['racks']}

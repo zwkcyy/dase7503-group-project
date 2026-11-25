@@ -26,6 +26,12 @@ def mission_parameters(path):
             raise ValueError(f'{key} must have one value per rack')
         values.extend(array)
     values.extend(params.get('destination_' + name) for name in ('x_m', 'y_m', 'yaw_rad'))
+    if params.get('use_qr_posts', False):
+        for key in ('start_scan_pose', 'end_scan_pose'):
+            pose = params.get(key)
+            if not isinstance(pose, list) or len(pose) != 3:
+                raise ValueError(f'{key} needs map x, y and yaw')
+            values.extend(pose)
     if params.get('use_docking', False):
         arrays = [params.get(key, []) for key in ('placement_x_m', 'placement_y_m', 'placement_yaw_rad')]
         if any(not isinstance(a, list) or len(a) != len(labels) for a in arrays):

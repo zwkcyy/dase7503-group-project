@@ -49,8 +49,10 @@ class PlanarBase(Node):
         if any(b[0] >= b[2] or b[1] >= b[3] for b in self.obstacles):
             raise ValueError('Obstacle bounds must increase')
         self.profile = load_profile(self.get_parameter('geometry_file').value, True)
-        if any(abs(x) > 1e-8 for x in self.profile['laser_rpy_rad'][:2]):
+        roll, pitch, _ = self.profile['laser_rpy_rad']
+        if abs(math.sin(roll)) > 1e-8 or abs(pitch) > 1e-8:
             raise ValueError('Planar simulator needs a horizontal laser')
+        self.scan_y_sign = 1. if math.cos(roll) >= 0 else -1.
         self.loaded = False
         self.rack_world = (RackWorld(self.world, [v/1000 for v in self.profile['empty_bounds_mm']])
                            if 'racks' in self.world else None)
@@ -197,7 +199,7 @@ class PlanarBase(Node):
         scan.angle_max = scan.angle_min + 359*scan.angle_increment
         scan.range_min, scan.range_max, scan.scan_time = .03, 5., .1
         scan.ranges = [float(ray_distance(lx, ly, yaw+self.profile['laser_rpy_rad'][2]
-                      + scan.angle_min+i*scan.angle_increment, self.edges)) for i in range(360)]
+                      + self.scan_y_sign*(scan.angle_min+i*scan.angle_increment), self.edges)) for i in range(360)]
         self.scan_pub.publish(scan)
 
     def status(self, msg):
