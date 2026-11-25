@@ -27,8 +27,9 @@ class MapTests(unittest.TestCase):
         self.assertEqual(grid.shape, (122, 173))
         self.assertEqual(info["offset_cells"], 11)
         self.assertEqual(info["resolution_m"], 0.02)
-        self.assertEqual(np.count_nonzero(grid == maps.FREE), 151 * 100)
-        self.assertTrue(np.all(grid[11:111, 11:162] == maps.FREE))
+        self.assertEqual(np.count_nonzero(grid == maps.FREE), 151 * 100 - 128)
+        for x0, y0, x1, y1 in self.cfg["qr_posts_mm"].values():
+            self.assertTrue(np.all(grid[11+y0//20:11+math.ceil(y1/20), 11+x0//20:11+math.ceil(x1/20)] == maps.OCCUPIED))
         self.assertTrue(np.all(grid[10, 10:163] == maps.OCCUPIED))
         self.assertTrue(np.all(grid[:10] == maps.UNKNOWN))
 

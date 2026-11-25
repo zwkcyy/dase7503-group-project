@@ -71,7 +71,9 @@ class RackWorld:
     def clearance(self, pose):
         body = corners(pose, self.body)
         moving = [body]
-        pairs = [(body, p, 'body/rack_leg') for p in self.floor_polygons(pose)]
+        pairs = [(body, p, 'body/static') for p in self.static]
+        pairs += [(body, p, 'body/rack_leg') for r in self.racks if r['label'] != self.carried
+                  for p in self.legs(r, pose)]
         if self.carried is not None:
             deck = corners(compose(pose, self.attachment), self.outer)
             moving.append(deck)

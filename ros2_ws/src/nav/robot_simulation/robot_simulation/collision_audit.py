@@ -93,7 +93,12 @@ def audit(directory, margin=.01):
     duration = mission_duration_seconds(completed-started, observer.get('elapsed_after_start_s'))
     route = route_metrics(directory)
     mission = yaml.safe_load((directory/'mission.yaml').read_text())['delivery_mission']['ros__parameters']
-    if not mission.get('retreat_after_pickup', True):
+    if mission.get('use_qr_posts'):
+        phases_seen = route['phase_entries']
+        assert phases_seen.count('VERIFY_DESTINATION') == 1, 'END must be scanned once'
+        assert phases_seen[-4:] == ['EXIT_DESTINATION', 'NAV_TO_END', 'VERIFY_DESTINATION', 'COMPLETE']
+        assert len(observer['confirmed_codes']) == 6 and observer['confirmed_codes'][-1] == 'END'
+    if not mission.get('retreat_after_pickup', False):
         assert 'EXIT_RACK' not in route['phase_entries'], 'Unexpected fixed retreat after pickup'
     assert route['phase_entries'].count('EXIT_DESTINATION') == 4, 'Missing empty-rack exit'
     result = {'passed': True, 'samples_replayed': samples, 'minimum_swept_clearance_m': minimum,

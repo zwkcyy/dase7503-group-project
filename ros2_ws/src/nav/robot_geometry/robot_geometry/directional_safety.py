@@ -75,7 +75,7 @@ def reverse_policy(phase, vx, distance):
             return 'reverse_speed_limit'
         if distance >= .50:
             return 'reverse_distance_limit'
-    elif phase in ('NAV_TO_RACK', 'NAV_TO_DESTINATION', 'DOCK_RACK', 'DOCK_DESTINATION'):
+    elif phase in ('ALIGN_START', 'NAV_TO_END', 'NAV_TO_RACK', 'NAV_TO_DESTINATION', 'DOCK_RACK', 'DOCK_DESTINATION'):
         if vx < -.035:
             return 'transit_reverse_speed_limit'
         if distance >= .08:

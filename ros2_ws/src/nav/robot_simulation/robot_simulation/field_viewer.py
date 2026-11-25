@@ -59,7 +59,7 @@ def main(args=None):
                    'WAIT_RACK_QR': '识别货架二维码', 'LIFT_RACK': '模拟抬起',
                    'NAV_TO_DESTINATION': '运往目的地区域', 'VERIFY_DESTINATION': '确认终点二维码',
                    'LOWER_RACK': '模拟放下', 'COMPLETE': '四架配送流程完成', 'ERROR': '任务停止 · 检查日志'}
-    phase_names.update(DOCK_RACK='低速入架', EXIT_RACK='载货退出',
+    phase_names.update(ALIGN_START='转向起点码', NAV_TO_END='前往终点扫码位', DOCK_RACK='低速入架', EXIT_RACK='载货退出',
                        DOCK_DESTINATION='对准独立放置位', EXIT_DESTINATION='放下后退出')
 
     def pose_callback(message):
@@ -169,6 +169,10 @@ def main(args=None):
         end_rect, start_rect = rect(scene['destination_zone_mm']), rect(scene['start_zone_mm'])
         text((end_rect[0]+end_rect[2])/2, field[1]-23, 'END  目的地区域', 16, '#287248', 'ma')
         text((start_rect[0]+start_rect[2])/2, start_rect[1]+8, 'START', 20, '#285e9e', 'ma')
+        for label, bounds in scene.get('qr_posts_mm', {}).items():
+            area = rect(bounds)
+            pen.rectangle(area, fill='#344b49', outline='#112e2e', width=2)
+            text((area[0]+area[2])/2, (area[1]+area[3])/2, label, 14, '#ffffff', 'mm')
         for obstacle in scene['obstacles_mm']:
             pen.rectangle(rect(obstacle), fill='#a3acb8', outline='#566378', width=2)
         text((field[0]+field[2])/2, field[3]+15, f'{size[1]:.2f} m', 18, '#64748b', 'ma')
@@ -214,7 +218,7 @@ def main(args=None):
         card((889, 132, 1564, 393))
         phase = state['phase']
         title = phase_names.get(phase, '正在初始化导航…')
-        if phase and phase not in ('COMPLETE', 'ERROR', 'WAIT_START'):
+        if phase and phase not in ('COMPLETE', 'ERROR', 'ALIGN_START', 'WAIT_START', 'NAV_TO_END', 'VERIFY_DESTINATION'):
             title += '  ·  '+scene['racks'][min(state['index'], 3)]['label']
         text(918, 153, '任务进度', 16, '#64748b')
         text(918, 181, title, 26, '#16735e' if phase != 'ERROR' else '#b23b3b')

@@ -40,10 +40,24 @@ def load_scene(path):
     obstacles = scene.get('obstacles_mm')
     if not isinstance(obstacles, list):
         raise ValueError('obstacles_mm must be a list')
-    for box in obstacles:
+    posts = scene.get('qr_posts_mm', {})
+    if not isinstance(posts, dict) or (posts and set(posts) != {'START', 'END'}):
+        raise ValueError('qr_posts_mm must contain START and END')
+    for box in [*obstacles, *posts.values()]:
         x0, y0, x1, y1 = numbers(box, 4, 'obstacle')
         if not (0 <= x0 < x1 <= size[0] and 0 <= y0 < y1 <= size[1]):
             raise ValueError('Obstacle must lie inside the field')
+    faces = scene.get('qr_faces', {})
+    if set(faces) != set(posts):
+        raise ValueError('Each QR post needs a printed face')
+    if posts:
+        for label, face in faces.items():
+            height, width, yaw = numbers([face[k] for k in ('height_mm', 'width_mm', 'yaw_rad')], 3, 'QR face')
+            if width <= 0 or height <= width/2:
+                raise ValueError('QR face must fit above the base')
+        x, y, _ = numbers(scene.get('end_scan_pose_mm_rad'), 3, 'end scan pose')
+        if not (0 < x < size[0] and 0 < y < size[1]):
+            raise ValueError('END scan pose must lie inside the field')
     geometry = scene['rack_geometry_mm']
     depth, width, leg = numbers([geometry[k] for k in ('depth', 'width', 'leg')], 3, 'rack geometry')
     if not 0 < 2*leg < min(depth, width):
@@ -65,7 +79,7 @@ def load_scene(path):
     distance = numbers([scene['docking_distance_mm']], 1, 'docking distance')[0]
     if distance < 300:
         raise ValueError('Docking approach must start outside the rack')
-    if not isinstance(scene.get('retreat_after_pickup', True), bool):
+    if not isinstance(scene.get('retreat_after_pickup', False), bool):
         raise ValueError('retreat_after_pickup must be a boolean')
     return scene
 
@@ -74,12 +88,17 @@ def world_config(scene):
     x, y, yaw = scene['initial_pose_mm_rad']
     world = {'size': [v/1000. for v in scene['size_mm']],
             'initial_pose': [x/1000., y/1000., yaw],
-            'obstacles': [[v/1000. for v in box] for box in scene['obstacles_mm']],
+            'obstacles': [[v/1000. for v in box] for box in [*scene['obstacles_mm'], *scene.get('qr_posts_mm', {}).values()]],
             'rack_geometry': {k: v/1000. for k, v in scene['rack_geometry_mm'].items()},
             'destination_zone': [v/1000. for v in scene['destination_zone_mm']],
             'racks': [{'label': r['label'], 'pose': [r['x_mm']/1000., r['y_mm']/1000., r['yaw_rad']],
                        'destination': [p[0]/1000., p[1]/1000., p[2]]}
                       for r, p in zip(scene['racks'], scene['placement_poses_mm_rad'])]}
+    world['qr_markers'] = {}
+    for label, face in scene.get('qr_faces', {}).items():
+        x0, y0, x1, y1 = scene['qr_posts_mm'][label]
+        world['qr_markers'][label] = {'xyz': [(x0+x1)/2000, (y0+y1)/2000, face['height_mm']/1000],
+                                      'width': face['width_mm']/1000, 'yaw': face['yaw_rad']}
     # Explicit fault-injection inputs: planning/QR poses remain unchanged.
     if 'localization_offset_mm_rad' in scene:
         dx, dy, angle = numbers(scene['localization_offset_mm_rad'], 3, 'localization offset')
@@ -96,6 +115,8 @@ def map_config(scene):
     return {'field': {'length_mm': scene['size_mm'][0], 'width_mm': scene['size_mm'][1],
                       'wall_thickness_mm': 20.},
             'map': {'name': 'course_map', 'resolution_mm': 5., 'margin_mm': 200.},
+            'qr_posts_mm': scene.get('qr_posts_mm', {}),
+            'obstacles_mm': scene['obstacles_mm'],
             'zones': {'start': list(scene['start_zone_mm']), 'destination': list(scene['destination_zone_mm'])}}
 
 
@@ -138,7 +159,12 @@ def mission_config(scene, profile=None):
         # explicitly non-surveyed and is never installed as a hardware default.
         'coordinates_confirmed': True, 'manage_load_envelope': True,
         'use_docking': True, 'docking_distance_m': scene['docking_distance_mm']/1000.,
-        'retreat_after_pickup': scene.get('retreat_after_pickup', True),
+        **({'use_qr_posts': True,
+            'start_scan_pose': [scene['initial_pose_mm_rad'][0]/1000, scene['initial_pose_mm_rad'][1]/1000,
+                                scene['initial_pose_mm_rad'][2] + math.pi/4],
+            'end_scan_pose': [scene['end_scan_pose_mm_rad'][0]/1000, scene['end_scan_pose_mm_rad'][1]/1000,
+                              scene['end_scan_pose_mm_rad'][2]]} if scene.get('qr_faces') else {}),
+        'retreat_after_pickup': scene.get('retreat_after_pickup', False),
         'placement_exit_distance_m': (placement_exit_distance(scene, profile) if profile is not None
                                       else scene['docking_distance_mm']/1000.),
         'placement_x_m': [p[0]/1000. for p in scene['placement_poses_mm_rad']],

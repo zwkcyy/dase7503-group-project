@@ -27,14 +27,16 @@ def audit(path, drive_mode=None):
     launch_mode = yaml.safe_load(launch_file.read_text()).get('drive_mode', 'omni') if launch_file.exists() else None
     drive_mode = validate_drive_mode(drive_mode or observer.get('drive_mode') or launch_mode
                                     or summary.get('drive_mode', 'omni'))
+    rack_codes = [r['qr'] for r in scene['racks']]
+    expected = ['START', *rack_codes, 'END'] if scene.get('qr_faces') else [
+        'START', *[code for rack in rack_codes for code in (rack, 'END')]]
     checks = {'mission_complete': summary.get('mission_state') == 'COMPLETE' and summary.get('rack_index') == 4,
               'contact_monitor_active': summary.get('contact_samples_received', 0) > 100,
               'no_unexpected_contacts': summary.get('unexpected_contact_samples') == 0,
               'no_emergency': not summary.get('emergency_latched', True),
               'eight_lift_transitions': [(x['label'], x['up']) for x in summary.get('moves', [])] ==
                                         [(label, up) for label in 'ABCD' for up in (True, False)],
-              'nine_decoded_markers': observer.get('codes') == ['START', 'RACKA_DEMO', 'END', 'RACKB_DEMO',
-                                                               'END', 'RACKC_DEMO', 'END', 'RACKD_DEMO', 'END'],
+              'decoded_markers_in_order': observer.get('codes') == expected,
               'four_empty_exits': sum(p['state'] == 'EXIT_DESTINATION' for p in observer['phases']) == 4}
     checks.update(command_audit(summary, drive_mode))
     if launch_mode is not None or 'drive_mode' in observer:
@@ -43,7 +45,7 @@ def audit(path, drive_mode=None):
     if drive_mode == 'differential':
         checks['differential_launch_mode_recorded'] = launch_mode == drive_mode
         checks['differential_observer_mode_recorded'] = observer.get('drive_mode') == drive_mode
-    active = [r for r in rows if r['mission_state'] not in ('WAIT_START',)]
+    active = [r for r in rows if r['mission_state'] not in ('ALIGN_START', 'WAIT_START')]
     complete = next((r for r in rows if r['mission_state'] == 'COMPLETE'), None)
     duration = complete['sim_seconds']-active[0]['sim_seconds'] if complete and active else None
     duration = observer.get('state', {}).get('task_elapsed_s', duration)
@@ -88,7 +90,7 @@ def audit(path, drive_mode=None):
                              b['poses']['robot']['y']-a['poses']['robot']['y']) for a, b in zip(rows, rows[1:]))
     motion = {}
     for a, b in zip(rows, rows[1:]):
-        if a['mission_state'] not in ('NAV_TO_RACK', 'NAV_TO_DESTINATION', 'EXIT_RACK', 'EXIT_DESTINATION'):
+        if a['mission_state'] not in ('ALIGN_START', 'NAV_TO_END', 'NAV_TO_RACK', 'NAV_TO_DESTINATION', 'EXIT_RACK', 'EXIT_DESTINATION'):
             continue
         key = f"{a['rack_index']}:{a['mission_state']}"
         item = motion.setdefault(key, {'reverse_distance_m': 0., 'max_reverse_m_s': 0., 'translation_m': 0.})

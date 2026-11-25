@@ -5,7 +5,11 @@ delivery_mission:
     coordinates_confirmed: false
     manage_load_envelope: true
     use_docking: true
-    retreat_after_pickup: true
+    # Group 5 field, in map metres and radians. Check these views on site.
+    use_qr_posts: true
+    start_scan_pose: [2.72, 1.0, 3.9269908169872414]
+    end_scan_pose: [1.05, 0.70, -2.356194490192345]
+    retreat_after_pickup: false
     docking_distance_m: 0.42
     placement_exit_distance_m: 0.42
     rack_labels: [A, B, C, D]

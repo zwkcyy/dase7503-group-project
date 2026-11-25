@@ -4,7 +4,7 @@
 Reads field dimensions in mm from config/field_config.yaml and writes a
 map_server compatible map (PGM image + YAML metadata, in metres).
 
-Only the walls are written into the map. Racks are moved during the game,
+Walls and fixed obstacles are written into the map. Racks are moved during the game,
 so they are handled by the costmap obstacle layer, not by the static map.
 
 Usage (from the robot_navigation directory):
@@ -73,6 +73,13 @@ def build_grid(cfg: dict) -> tuple[np.ndarray, dict]:
     grid[margin:height - margin, margin:width - margin] = OCCUPIED
     # free inner field
     grid[offset:offset + inner_y, offset:offset + inner_x] = FREE
+
+    for box in [*cfg.get('obstacles_mm', []), *cfg.get('qr_posts_mm', {}).values()]:
+        x0, y0, x1, y1 = box
+        if not (0 <= x0 < x1 <= field['length_mm'] and 0 <= y0 < y1 <= field['width_mm']):
+            raise ValueError('Fixed obstacle must lie within the field')
+        grid[offset + math.floor(y0/res):offset + math.ceil(y1/res),
+             offset + math.floor(x0/res):offset + math.ceil(x1/res)] = OCCUPIED
 
     info = {
         "width": width,

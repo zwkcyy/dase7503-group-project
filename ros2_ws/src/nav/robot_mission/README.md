@@ -78,10 +78,16 @@ Both distances must be between 0.3 and 0.8 m and require geometry validation.
 `retreat_after_pickup: false` sends the next Nav2 goal directly after lift and
 loaded-footprint acknowledgement. It removes the fixed return to the pickup
 approach; Nav2 still plans around current obstacles and may reverse if needed.
-The default remains true for existing configurations. The course simulation
-explicitly enables direct departure and derives a 0.365 m empty exit from its
+Direct departure is the default. Explicit `true` retains the fixed pickup exit.
+The course simulation enables direct departure and derives a 0.365 m empty exit from its
 body/rack geometry and uncertainty budgets. An empty exit must clear the rack
 before allowing the next route to turn or move sideways.
+
+The Group 5 course sets `use_qr_posts: true`. At startup Nav2 goes to
+`start_scan_pose` and the START read begins the competition clock. Each rack
+requires its pickup QR. After the last lowering and empty exit, Nav2 goes
+to `end_scan_pose`. A fresh END read completes the task there. Both scan poses
+specify map x, y and yaw. The display's parking outline is independent.
 
 With `manage_load_envelope: true` (the default), start the full NAV bringup too.
 After each fresh lift completion the mission calls `/nav/set_loaded`
@@ -126,7 +132,11 @@ frame to stop at the target. Keep localization, Nav2 behaviors, the velocity
 smoother and the final motion guard running. Use the normal hardware bringup
 and arming procedure. A successful action reports an odometry-based result.
 
-Translation requests use 0.5 m/s. Add `relative_motion_limits:=true` to the
+Relative forward and backward actions use a 0.30 m/s cruise ceiling. Between
+0.30 and 0.15 m remaining, the ceiling tapers to 0.10 m/s. In the last 0.15 m
+the controller uses that approach speed and measured odometry to brake. Success
+requires a settled pose within 15 mm along the track (a tighter tolerance applies
+to short requests). Add `relative_motion_limits:=true` to the
 differential navigation, CAD/EC or full-system launch arguments for direct
 velocity requests to the motion guard. The smoother is omitted from the ROS
 graph and lifecycle manager in this mode. Spin uses a 2 rad/s ceiling.

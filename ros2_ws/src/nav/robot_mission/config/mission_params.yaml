@@ -4,9 +4,8 @@ delivery_mission:
     coordinates_confirmed: false
     # Requires robot_navigation bringup and confirmed mechanical geometry.
     manage_load_envelope: true
-    # Optional docking departure policy. Hardware keeps the conservative default.
-    # Set false only after validating direct loaded paths with the actual envelope.
-    retreat_after_pickup: true
+    # Plan to the destination after the loaded footprint is acknowledged.
+    retreat_after_pickup: false
     # Independent from the insertion approach; derive from measured turn clearance.
     placement_exit_distance_m: 0.42
     rack_labels: ["A", "B", "C", "D"]

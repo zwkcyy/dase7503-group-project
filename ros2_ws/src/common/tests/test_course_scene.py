@@ -80,8 +80,14 @@ class CourseSceneTests(unittest.TestCase):
         self.assertLess(positions['A'][1], positions['D'][1])
         self.assertLess(positions['C'][1], positions['B'][1])
 
-    def test_no_regression_obstacle_in_course_scene(self):
-        self.assertEqual(world_config(self.scene)['obstacles'], [])
+    def test_fixed_posts_match_hardware_map_and_planar_world(self):
+        hardware = yaml.safe_load((NAV/'robot_navigation/config/field_config.yaml').read_text())
+        posts = self.scene['qr_posts_mm']
+        self.assertEqual(posts, hardware['qr_posts_mm'])
+        self.assertEqual(map_config(self.scene)['qr_posts_mm'], posts)
+        self.assertEqual(world_config(self.scene)['obstacles'], [[v/1000 for v in b] for b in posts.values()])
+        self.assertEqual(posts['START'], [2420, 600, 2570, 750])
+        self.assertEqual(posts['END'], [650, 300, 800, 450])
         old = yaml.safe_load((NAV/'robot_simulation/config/demo_world.yaml').read_text())
         self.assertTrue(old['obstacles'])
 

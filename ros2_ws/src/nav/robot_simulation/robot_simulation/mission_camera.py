@@ -2,6 +2,9 @@
 import json
 import math
 import time
+from pathlib import Path
+import yaml
+from .post_camera import post_image
 import cv2
 import numpy as np
 import rclpy
@@ -28,6 +31,15 @@ class MissionCamera(Node):
             raise ValueError('Image scenario must be success, wrong_qr or missing_qr')
         params = mission_parameters(self.get_parameter('mission_file').value)
         self.params = params
+        for key in ('world_file', 'geometry_file'):
+            self.declare_parameter(key, '')
+        self.posts = {}
+        if params.get('use_qr_posts'):
+            world = yaml.safe_load(Path(self.get_parameter('world_file').value).read_text())
+            self.posts = world['qr_markers']
+            mount = yaml.safe_load(Path(self.get_parameter('geometry_file').value).read_text())
+            self.camera_xyz = [v/1000 for v in mount['camera_xyz_mm']]
+            self.camera_rpy = mount['camera_rpy_rad']
         self.pose = None
         self.pose_at = 0.
         self.create_subscription(PoseStamped, '/simulation/pose', self.position, 10)
@@ -41,7 +53,7 @@ class MissionCamera(Node):
         self.publisher = self.create_publisher(Image, '/camera/image_raw', qos_profile_sensor_data)
         self.create_subscription(String, '/mission/status', self.status, 10)
         self.create_timer(.1, self.tick)
-        self.get_logger().warning('SYNTHETIC CAMERA: task-driven QR images; no physical camera visibility model')
+        self.get_logger().warning('Synthetic camera: projected post images when configured, pose-gated rack fixtures')
 
     def status(self, msg):
         data = json.loads(msg.data)
@@ -78,7 +90,7 @@ class MissionCamera(Node):
             payload = self.codes[self.index]
         elif self.state == 'VERIFY_DESTINATION':
             payload = 'END'
-        if payload and not self.visible():
+        if payload and payload not in self.posts and not self.visible():
             payload = None
         if self.state != 'WAIT_START':
             if self.scenario == 'wrong_qr' and payload:
@@ -88,7 +100,16 @@ class MissionCamera(Node):
         if payload != self.last_payload:
             self.get_logger().info(f'Synthetic image payload: {payload!r}; mission={self.state}')
             self.last_payload = payload
-        msg = self.bridge.cv2_to_imgmsg(self.frames.get(payload, self.blank), encoding='mono8')
+        frame = self.frames.get(payload, self.blank)
+        if payload in self.posts:
+            frame = self.blank
+            if self.pose and time.monotonic()-self.pose_at < .5:
+                q = self.pose.orientation
+                heading = math.atan2(2*q.w*q.z, 1-2*q.z*q.z)
+                pose = (self.pose.position.x, self.pose.position.y, heading)
+                frame = post_image(self.frames[payload], self.posts[payload], pose,
+                                   self.camera_xyz, self.camera_rpy)
+        msg = self.bridge.cv2_to_imgmsg(frame, encoding='mono8')
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = 'camera_optical_frame'
         self.publisher.publish(msg)

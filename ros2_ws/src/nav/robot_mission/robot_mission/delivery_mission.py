@@ -21,6 +21,8 @@ from std_srvs.srv import Trigger, SetBool
 
 
 class MissionState(Enum):
+    ALIGN_START = auto()
+    NAV_TO_END = auto()
     WAIT_START = auto()
     NAV_TO_RACK = auto()
     DOCK_RACK = auto()
@@ -40,7 +42,7 @@ QR_STATES = {MissionState.WAIT_START, MissionState.WAIT_RACK_QR,
              MissionState.VERIFY_DESTINATION}
 DOCK_STATES = {MissionState.DOCK_RACK, MissionState.EXIT_RACK,
                MissionState.DOCK_DESTINATION, MissionState.EXIT_DESTINATION}
-NAV_STATES = {MissionState.NAV_TO_RACK, MissionState.NAV_TO_DESTINATION} | DOCK_STATES
+NAV_STATES = {MissionState.ALIGN_START, MissionState.NAV_TO_END, MissionState.NAV_TO_RACK, MissionState.NAV_TO_DESTINATION} | DOCK_STATES
 TERMINAL_STATES = {MissionState.COMPLETE, MissionState.ERROR}
 
 
@@ -81,8 +83,10 @@ class DeliveryMission(Node):
         self.declare_parameter("manage_load_envelope", True)
         self.declare_parameter('use_docking', False)
         self.declare_parameter('docking_distance_m', .42)
-        # Keep legacy/hardware configurations unchanged unless explicitly set.
-        self.declare_parameter('retreat_after_pickup', True)
+        self.declare_parameter('use_qr_posts', False)
+        for key in ('start_scan_pose', 'end_scan_pose'):
+            self.declare_parameter(key, [math.nan]*3)
+        self.declare_parameter('retreat_after_pickup', False)
         self.declare_parameter('placement_exit_distance_m', 0.)
         for key in ('placement_x_m', 'placement_y_m', 'placement_yaw_rad'):
             self.declare_parameter(key, [0., 0., 0., 0.])
@@ -103,6 +107,12 @@ class DeliveryMission(Node):
             float(self.get_parameter("destination_y_m").value),
             float(self.get_parameter("destination_yaw_rad").value),
         )
+        self._qr_posts = self.get_parameter('use_qr_posts').value
+        self._start_scan_pose = list(self.get_parameter('start_scan_pose').value)
+        self._end_scan_pose = list(self.get_parameter('end_scan_pose').value)
+        if self._qr_posts and any(len(p) != 3 or not all(math.isfinite(v) for v in p)
+                                  for p in (self._start_scan_pose, self._end_scan_pose)):
+            raise ValueError('QR scan poses must contain finite map x, y and yaw')
         self._docking = bool(self.get_parameter('use_docking').value)
         self._dock_distance = float(self.get_parameter('docking_distance_m').value)
         self._retreat_after_pickup = bool(self.get_parameter('retreat_after_pickup').value)
@@ -173,7 +183,7 @@ class DeliveryMission(Node):
         if any(not math.isfinite(value) for value in poses):
             raise ValueError("all mission poses must be finite")
 
-        self._state = MissionState.WAIT_START
+        self._state = MissionState.ALIGN_START if self._qr_posts else MissionState.WAIT_START
         self._generation = 0
         self._state_entered = self._now()
         self._rack_index = 0
@@ -467,16 +477,23 @@ class DeliveryMission(Node):
             self._fail(f"Navigation ended with action status {status}")
             return
 
-        if self._state == MissionState.NAV_TO_RACK:
+        if self._state == MissionState.ALIGN_START:
+            self._transition(MissionState.WAIT_START)
+        elif self._state == MissionState.NAV_TO_END:
+            self._transition(MissionState.VERIFY_DESTINATION)
+        elif self._state == MissionState.NAV_TO_RACK:
             self._transition(MissionState.WAIT_RACK_QR)
         elif self._state == MissionState.NAV_TO_DESTINATION:
-            self._transition(MissionState.DOCK_DESTINATION if self._docking else MissionState.VERIFY_DESTINATION)
+            if self._docking:
+                self._transition(MissionState.DOCK_DESTINATION)
+            else:
+                self._transition(MissionState.LOWER_RACK if self._qr_posts else MissionState.VERIFY_DESTINATION)
         elif self._state == MissionState.DOCK_RACK:
             self._transition(MissionState.LIFT_RACK)
         elif self._state == MissionState.EXIT_RACK:
             self._transition(MissionState.NAV_TO_DESTINATION)
         elif self._state == MissionState.DOCK_DESTINATION:
-            self._transition(MissionState.VERIFY_DESTINATION)
+            self._transition(MissionState.LOWER_RACK if self._qr_posts else MissionState.VERIFY_DESTINATION)
         elif self._state == MissionState.EXIT_DESTINATION:
             self._finish_rack()
 
@@ -496,9 +513,7 @@ class DeliveryMission(Node):
         self.get_logger().info(f'Delivered rack {self._labels[self._rack_index]} and cleared its exit')
         self._rack_index += 1
         if self._rack_index >= len(self._labels):
-            elapsed = self._now()-self._competition_started_at if self._competition_started_at is not None else 0.
-            self.get_logger().info(f'Mission complete: delivered {len(self._labels)} racks in {elapsed:.1f} s')
-            self._transition(MissionState.COMPLETE)
+            self._transition(MissionState.NAV_TO_END if self._qr_posts else MissionState.COMPLETE)
         else:
             self._transition(MissionState.NAV_TO_RACK)
 
@@ -617,7 +632,16 @@ class DeliveryMission(Node):
             self._fail("Timed out waiting for the QR start service response")
             return
 
-        if self._state == MissionState.WAIT_START:
+        if self._state in (MissionState.ALIGN_START, MissionState.NAV_TO_END):
+            if not self._coordinates_confirmed:
+                return
+            if elapsed >= self._navigation_timeout:
+                self._fail('Timed out while navigating to a QR post viewpoint')
+            elif not self._goal_sent:
+                pose = self._start_scan_pose if self._state == MissionState.ALIGN_START else self._end_scan_pose
+                self._send_navigation_goal(*pose)
+
+        elif self._state == MissionState.WAIT_START:
             if not self._coordinates_confirmed:
                 return
             self._run_qr_step("START", MissionState.NAV_TO_RACK,
@@ -660,7 +684,7 @@ class DeliveryMission(Node):
                 self._send_navigation_goal(*pose)
 
         elif self._state == MissionState.VERIFY_DESTINATION:
-            self._run_qr_step("END", MissionState.LOWER_RACK,
+            self._run_qr_step("END", MissionState.COMPLETE if self._qr_posts else MissionState.LOWER_RACK,
                               elapsed, self._qr_timeout)
 
         elif self._state == MissionState.LOWER_RACK:

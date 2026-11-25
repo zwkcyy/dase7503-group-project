@@ -34,7 +34,6 @@ def run_case(directory, domain, loaded=False, reverse=False, old_height=False):
         # This obstacle is outside the empty chassis, inside the cargo sweep.
         if not reverse:
             scene['obstacles_mm'] = [[2080., 795., 2095., 810.]]
-    physics['start_qr_y_mm'] = 1700.
     if old_height:
         physics['laser_z_mm'] = 70.
     inputs = {}

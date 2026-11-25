@@ -22,7 +22,7 @@ from .directional_safety import rear_visibility, braking_obstacle, reverse_polic
 from .profile import transform_point
 
 
-MOVING = {'NAV_TO_RACK', 'NAV_TO_DESTINATION', 'DOCK_RACK', 'DOCK_DESTINATION',
+MOVING = {'ALIGN_START', 'NAV_TO_END', 'NAV_TO_RACK', 'NAV_TO_DESTINATION', 'DOCK_RACK', 'DOCK_DESTINATION',
           'EXIT_RACK', 'EXIT_DESTINATION'}
 HOLDING = {'WAIT_START', 'WAIT_RACK_QR', 'LIFT_RACK', 'VERIFY_DESTINATION',
            'LOWER_RACK', 'COMPLETE', 'ERROR'}

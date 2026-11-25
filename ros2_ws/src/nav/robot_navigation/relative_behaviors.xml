@@ -1,0 +1,8 @@
+<library path="relative_translation">
+  <class type="robot_navigation::RelativeForward" base_class_type="nav2_core::Behavior">
+    <description>Forward cruise, approach, and measured stop.</description>
+  </class>
+  <class type="robot_navigation::RelativeBackward" base_class_type="nav2_core::Behavior">
+    <description>Reverse cruise, approach, and measured stop.</description>
+  </class>
+</library>

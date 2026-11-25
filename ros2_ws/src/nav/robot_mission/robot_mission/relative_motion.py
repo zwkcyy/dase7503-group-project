@@ -15,8 +15,8 @@ from rclpy.signals import SignalHandlerOptions
 
 
 ACTIONS = {
-    'forward': ('drive_on_heading', DriveOnHeading),
-    'backward': ('backup', BackUp),
+    'forward': ('relative_forward', DriveOnHeading),
+    'backward': ('relative_backward', BackUp),
     'left': ('spin', Spin),
     'right': ('spin', Spin),
 }
@@ -35,7 +35,7 @@ def make_goal(direction, amount, timeout_s):
     else:
         sign = 1.0 if direction == 'forward' else -1.0
         goal.target.x = sign * amount
-        goal.speed = sign * 0.5
+        goal.speed = sign * 0.3
     return name, action, goal
 
 

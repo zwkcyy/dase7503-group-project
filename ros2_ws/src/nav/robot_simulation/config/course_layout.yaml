@@ -23,8 +23,18 @@ docking_distance_mm: 420.0
 retreat_after_pickup: false
 # Fill the back row first; each front-row rack has its own exit corridor.
 placement_poses_mm_rad:
-  - [220.0, 610.0, 3.141592653589793]
+  - [170.0, 755.0, 3.141592653589793]
   - [220.0, 1390.0, 3.141592653589793]
   - [570.0, 1390.0, 3.141592653589793]
-  - [570.0, 610.0, 3.141592653589793]
+  - [635.0, 755.0, 3.141592653589793]
 obstacles_mm: []
+# 150 mm QR bases inside their zones, sharing the start upper-left / destination lower-left corners.
+qr_posts_mm:
+  START: [2420, 600, 2570, 750]
+  END: [650, 300, 800, 450]
+# Optical assumptions from the field photo. Face yaw is relative to field +x.
+qr_faces:
+  START: {height_mm: 235, width_mm: 70, yaw_rad: 0.7853981633974483}
+  END: {height_mm: 235, width_mm: 70, yaw_rad: 0.7853981633974483}
+# Approach END from the open aisle with the empty chassis, after all racks are down.
+end_scan_pose_mm_rad: [1050, 700, -2.356194490192345]

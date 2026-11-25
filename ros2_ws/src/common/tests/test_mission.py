@@ -78,7 +78,7 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(self.node._now(), 14.)
 
     def test_docking_sequence_exits_before_counting_delivery(self):
-        overrides = dict(Node.overrides, use_docking=True,
+        overrides = dict(Node.overrides, use_docking=True, retreat_after_pickup=True,
                          placement_x_m=[.22, .22, .57, .57],
                          placement_y_m=[.61, 1.39, 1.39, .61],
                          placement_yaw_rad=[math.pi]*4)
@@ -115,7 +115,7 @@ class MissionTests(unittest.TestCase):
                 mission.DeliveryMission()
 
     def test_direct_loaded_departure_and_shorter_empty_exit(self):
-        overrides = dict(Node.overrides, use_docking=True, retreat_after_pickup=False,
+        overrides = dict(Node.overrides, use_docking=True,
                          placement_exit_distance_m=.365,
                          placement_x_m=[.22, .22, .57, .57],
                          placement_y_m=[.61, 1.39, 1.39, .61],
@@ -147,6 +147,42 @@ class MissionTests(unittest.TestCase):
         self.assertEqual(self.node._state, State.COMPLETE)
         self.assertEqual(len(self.node._dock_client.calls), 12)
         self.assertEqual(len(self.node._nav_client.calls), 8)
+
+    def test_final_scan_only_after_last_empty_exit(self):
+        overrides = dict(Node.overrides, use_qr_posts=True, use_docking=True,
+                         start_scan_pose=[2.72, 1., 5*math.pi/4], end_scan_pose=[1.05, .70, -3*math.pi/4],
+                         placement_x_m=[.22, .22, .57, .57], placement_y_m=[.61, 1.39, 1.39, .61],
+                         placement_yaw_rad=[math.pi]*4)
+        with patch.object(Node, 'overrides', overrides):
+            self.node = mission.DeliveryMission()
+        def dock():
+            self.node._tick()
+            handle = GoalHandle()
+            self.node._dock_client.calls[-1][1].set_result(handle)
+            handle.result.set_result(SimpleNamespace(status=4))
+        self.assertEqual(self.node._state, State.ALIGN_START)
+        self.navigate()
+        self.qr('START')
+        for label in 'ABCD':
+            self.navigate()
+            self.qr(f'RACK{label}_aB12')
+            dock()
+            self.lift(1)
+            self.assertEqual(self.node._state, State.NAV_TO_DESTINATION)
+            self.navigate()
+            dock()
+            self.assertEqual(self.node._state, State.LOWER_RACK)
+            self.lift(0)
+            self.assertEqual(self.node._state, State.EXIT_DESTINATION)
+            dock()
+        self.assertEqual(self.node._state, State.NAV_TO_END)
+        self.navigate()
+        goal = self.node._nav_client.calls[-1][0].pose.pose.position
+        self.assertEqual((goal.x, goal.y), (1.05, .70))
+        self.assertEqual(self.node._state, State.VERIFY_DESTINATION)
+        self.qr('END')
+        self.assertEqual(self.node._state, State.COMPLETE)
+        self.assertEqual(len(self.node._qr_scan_client.calls), 6)
 
     def test_invalid_exit_distance_rejected_before_docking(self):
         for value in (float('nan'), float('inf'), .1, -.1, .81):
